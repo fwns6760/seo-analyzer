@@ -1,0 +1,32 @@
+{
+  "name": "seo-analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SEO analyzer web app with Next.js, Supabase Auth, and GCP batch jobs",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "start:sample": "node server.js",
+    "gsc:check": "node scripts/gsc-connection-check.mjs",
+    "ga4:check": "node scripts/ga4-connection-check.mjs",
+    "batch:job": "node scripts/seo-batch-job.mjs",
+    "batch:job:dry-run": "node scripts/seo-batch-job.mjs --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
+  }
+}
