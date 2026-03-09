@@ -22,6 +22,7 @@ const primaryNavItems = [
   {
     label: "改善候補",
     detail: "Opportunity feed",
+    href: "/opportunities",
   },
 ];
 
@@ -45,6 +46,18 @@ function getViewMeta(pathname: string) {
       focus: "検索語の分散と上位ページを把握する",
       status: "Query analysis",
       hint: "見る順番: scorecard -> page count -> 紐づくページ",
+    };
+  }
+
+  if (pathname.startsWith("/opportunities")) {
+    return {
+      eyebrow: "Opportunity feed",
+      title: "改善候補を一覧で整理して次の深掘り先を決める",
+      description:
+        "順位下落、伸びた記事、リライト候補、カニバリ候補を切り替えながら、優先順位と遷移先を同時に確認します。",
+      focus: "候補タイプごとの優先順位と次の分析先を素早く確定する",
+      status: "Opportunity feed",
+      hint: "見る順番: feed 切替 -> 候補選択 -> 深掘り",
     };
   }
 

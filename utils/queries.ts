@@ -51,6 +51,7 @@ export type QueryAnalysisData = {
   leaderboard: QueryLeaderboardItem[];
   trend: QueryTrendPoint[];
   pages: QueryPageItem[];
+  requestedSelectionMissing: boolean;
 };
 
 const projectId =
@@ -270,11 +271,28 @@ export async function getQueryAnalysisData(selectedQuery: string | null): Promis
       leaderboard,
       trend: [],
       pages: [],
+      requestedSelectionMissing: false,
     };
   }
 
-  const selectedQueryItem =
-    leaderboard.find((item) => item.query === selectedQuery) ?? leaderboard[0];
+  const matchedQuery =
+    selectedQuery !== null
+      ? leaderboard.find((item) => item.query === selectedQuery) ?? null
+      : null;
+  const requestedSelectionMissing = selectedQuery !== null && matchedQuery === null;
+
+  if (requestedSelectionMissing) {
+    return {
+      referenceEndDate: leaderboard[0]?.reference_end_date ?? null,
+      selectedQuery: null,
+      leaderboard,
+      trend: [],
+      pages: [],
+      requestedSelectionMissing: true,
+    };
+  }
+
+  const selectedQueryItem = matchedQuery ?? leaderboard[0];
 
   const [trend, pages] = await Promise.all([
     runBigQueryQuery<QueryTrendPoint>(buildTrendQuery(selectedQueryItem.query)),
@@ -287,5 +305,6 @@ export async function getQueryAnalysisData(selectedQuery: string | null): Promis
     leaderboard,
     trend,
     pages,
+    requestedSelectionMissing: false,
   };
 }

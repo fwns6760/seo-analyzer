@@ -55,6 +55,7 @@ export type ArticleAnalysisData = {
   leaderboard: ArticleLeaderboardItem[];
   trend: ArticleTrendPoint[];
   queries: ArticleQueryItem[];
+  requestedSelectionMissing: boolean;
 };
 
 const projectId =
@@ -261,11 +262,28 @@ export async function getArticleAnalysisData(selectedPagePath: string | null): P
       leaderboard,
       trend: [],
       queries: [],
+      requestedSelectionMissing: false,
     };
   }
 
-  const selectedPage =
-    leaderboard.find((item) => item.page_path === selectedPagePath) ?? leaderboard[0];
+  const matchedPage =
+    selectedPagePath !== null
+      ? leaderboard.find((item) => item.page_path === selectedPagePath) ?? null
+      : null;
+  const requestedSelectionMissing = selectedPagePath !== null && matchedPage === null;
+
+  if (requestedSelectionMissing) {
+    return {
+      referenceEndDate: leaderboard[0]?.reference_end_date ?? null,
+      selectedPage: null,
+      leaderboard,
+      trend: [],
+      queries: [],
+      requestedSelectionMissing: true,
+    };
+  }
+
+  const selectedPage = matchedPage ?? leaderboard[0];
 
   const [trend, queries] = await Promise.all([
     runBigQueryQuery<ArticleTrendPoint>(buildTrendQuery(selectedPage.page_path)),
@@ -278,5 +296,6 @@ export async function getArticleAnalysisData(selectedPagePath: string | null): P
     leaderboard,
     trend,
     queries,
+    requestedSelectionMissing: false,
   };
 }

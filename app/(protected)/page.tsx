@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import {
+  comparisonWindowDays,
+  getComparisonWindowStatus,
+} from "@/utils/comparison-window";
+import {
   getDashboardData,
   type DashboardOpportunity,
   type DashboardOverview,
@@ -78,6 +82,32 @@ function formatDisplayDate(value: string) {
   }).format(new Date(`${value}T00:00:00+09:00`));
 }
 
+function getComparisonPendingMessage(activeDays: number, etaDate: string | null) {
+  const progress = `現在 ${activeDays}/${comparisonWindowDays} 日です。`;
+
+  if (etaDate) {
+    return `まだ比較できる十分な週次データがありません。${progress}最短 ${formatDisplayDate(etaDate)} に前週比較がそろいます。`;
+  }
+
+  return `まだ比較できる十分な週次データがありません。${progress}`;
+}
+
+function getComparisonStatusLabel(
+  comparisonReady: boolean,
+  activeDays: number,
+  etaDate: string | null,
+) {
+  if (comparisonReady) {
+    return "前週比較あり";
+  }
+
+  if (etaDate) {
+    return `蓄積中 ${activeDays}/${comparisonWindowDays}日 -> 最短 ${formatDisplayDate(etaDate)}`;
+  }
+
+  return `蓄積中 ${activeDays}/${comparisonWindowDays}日`;
+}
+
 function getPageLabel(path: string) {
   if (path === "/") {
     return "トップページ";
@@ -86,11 +116,12 @@ function getPageLabel(path: string) {
   return path;
 }
 
-function getOpportunityHref(item: DashboardOpportunity) {
+function getOpportunityHref(groupId: OpportunityGroup["id"], item: DashboardOpportunity) {
   return {
-    pathname: "/articles",
+    pathname: "/opportunities",
     query: {
-      page: item.entity_key,
+      kind: groupId,
+      entity: item.entity_key,
     },
   };
 }
@@ -172,7 +203,11 @@ export default async function HomePage() {
     }));
 
   const overview = dashboardResult.data?.overview ?? null;
-  const comparisonReady = overview ? overview.active_days >= 14 : false;
+  const comparisonWindow = getComparisonWindowStatus(
+    overview?.active_days ?? 0,
+    overview?.latest_date ?? null,
+  );
+  const comparisonReady = overview ? comparisonWindow.readyByWindow : false;
   const metricCards = overview ? getMetricCards(overview) : [];
   const opportunityGroups: OpportunityGroup[] = dashboardResult.data
     ? [
@@ -180,14 +215,19 @@ export default async function HomePage() {
           id: "growth",
           title: "伸びた記事",
           description: "今週の push 先を見つけるための成長候補です。",
-          emptyMessage: "まだ比較できる十分な週次データがありません。",
+          emptyMessage: getComparisonPendingMessage(
+            comparisonWindow.activeDays,
+            comparisonWindow.etaDate,
+          ),
           items: dashboardResult.data.growthItems,
         },
         {
           id: "rank-drop",
           title: "順位下落",
           description: "まず守るべきページを優先して見ます。",
-          emptyMessage: "現時点で大きな下落シグナルは見つかっていません。",
+          emptyMessage: comparisonReady
+            ? "現時点で大きな下落シグナルは見つかっていません。"
+            : getComparisonPendingMessage(comparisonWindow.activeDays, comparisonWindow.etaDate),
           items: dashboardResult.data.rankDropItems,
         },
         {
@@ -231,7 +271,13 @@ export default async function HomePage() {
             </div>
             <div className="report-filter-chip">
               <span>Comparison</span>
-              <strong>{comparisonReady ? "前週比較あり" : `蓄積中 ${overview.active_days}/14日`}</strong>
+              <strong>
+                {getComparisonStatusLabel(
+                  comparisonReady,
+                  comparisonWindow.activeDays,
+                  comparisonWindow.etaDate,
+                )}
+              </strong>
             </div>
           </div>
         ) : null}
@@ -245,8 +291,16 @@ export default async function HomePage() {
             </article>
             <article className="report-highlight-card">
               <span className="label">Coverage</span>
-              <strong>{overview.active_days}/14 日の比較母数</strong>
-              <p>{comparisonReady ? "前週比較 ready" : "週次比較はまだ蓄積中です。"}</p>
+              <strong>
+                {comparisonWindow.activeDays}/{comparisonWindow.targetDays} 日の比較母数
+              </strong>
+              <p>
+                {comparisonReady
+                  ? "前週比較 ready"
+                  : comparisonWindow.etaDate
+                    ? `最短 ${formatDisplayDate(comparisonWindow.etaDate)} に ready 見込みです。`
+                    : "週次比較はまだ蓄積中です。"}
+              </p>
             </article>
             <article className="report-highlight-card">
               <span className="label">Decision lens</span>
@@ -331,7 +385,11 @@ export default async function HomePage() {
                       {formatMetricDelta(card.currentValue, card.previousValue, card.format)}
                     </p>
                   ) : (
-                    <p className="scorecard-delta is-neutral">前週比較は 14 日蓄積後に表示</p>
+                    <p className="scorecard-delta is-neutral">
+                      {comparisonWindow.etaDate
+                        ? `前週比較は最短 ${formatDisplayDate(comparisonWindow.etaDate)} から表示`
+                        : `前週比較は ${comparisonWindow.targetDays} 日蓄積後に表示`}
+                    </p>
                   )}
                   <p className="scorecard-baseline">
                     前週 {formatMetricValue(card.previousValue, card.format)}
@@ -362,14 +420,24 @@ export default async function HomePage() {
                           <h3>{group.title}</h3>
                           <p>{group.description}</p>
                         </div>
-                        <span className="report-panel-tag">{group.items.length} items</span>
+                        <Link
+                          className="report-panel-tag"
+                          href={{
+                            pathname: "/opportunities",
+                            query: {
+                              kind: group.id,
+                            },
+                          }}
+                        >
+                          {group.items.length} items
+                        </Link>
                       </div>
 
                       {group.items.length > 0 ? (
                         <ul className="opportunity-list">
                           {group.items.map((item) => (
                             <li className="opportunity-item" key={`${group.id}-${item.entity_key}`}>
-                              <Link href={getOpportunityHref(item)}>
+                              <Link href={getOpportunityHref(group.id, item)}>
                                 {getPageLabel(item.entity_key)}
                               </Link>
                               <p>{renderOpportunityStats(group.id, item)}</p>

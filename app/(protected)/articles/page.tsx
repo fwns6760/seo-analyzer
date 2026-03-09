@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
+import { notFound } from "next/navigation";
 import { getArticleAnalysisData } from "@/utils/articles";
 
 export const dynamic = "force-dynamic";
@@ -81,8 +82,11 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
   noStore();
 
   const params = await searchParams;
-  const requestedPage =
-    typeof params.page === "string" && params.page.startsWith("/") ? params.page : null;
+  if (params.page !== undefined && (typeof params.page !== "string" || !params.page.startsWith("/"))) {
+    notFound();
+  }
+
+  const requestedPage = typeof params.page === "string" ? params.page : null;
 
   const articleResult = await getArticleAnalysisData(requestedPage)
     .then((data) => ({ data, error: null as string | null }))
@@ -91,6 +95,10 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
       error:
         error instanceof Error ? error.message : "BigQuery から記事分析データを取得できませんでした。",
     }));
+
+  if (!articleResult.error && articleResult.data?.requestedSelectionMissing) {
+    notFound();
+  }
 
   const selectedPage = articleResult.data?.selectedPage ?? null;
   const comparisonReady = selectedPage ? selectedPage.previous_impressions > 0 : false;

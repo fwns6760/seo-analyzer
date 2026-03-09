@@ -165,6 +165,32 @@ select {
   transform: translateY(-1px);
 }
 
+.ghost-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--brand-deep);
+  font-weight: 600;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.status-actions .primary-button,
+.status-actions .secondary-button,
+.status-actions .ghost-link {
+  margin-top: 0;
+}
+
 .error-box,
 .empty-state {
   margin-top: 18px;
@@ -522,6 +548,70 @@ select {
   padding: 28px;
 }
 
+.loading-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.loading-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.loading-card {
+  overflow: hidden;
+}
+
+.loading-line,
+.loading-pill {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.loading-line::after,
+.loading-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  transform: translateX(-100%);
+  animation: skeleton-shift 1.4s ease-in-out infinite;
+}
+
+.loading-line-title {
+  width: min(340px, 72%);
+  height: 28px;
+}
+
+.loading-line-medium {
+  width: min(280px, 68%);
+  height: 18px;
+}
+
+.loading-line-body {
+  width: 100%;
+  height: 12px;
+}
+
+.loading-line-short {
+  width: min(180px, 42%);
+  height: 12px;
+}
+
+.loading-pill-sm {
+  width: 108px;
+  height: 12px;
+}
+
+.loading-pill-xs {
+  width: 72px;
+  height: 10px;
+}
+
 .insight-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -744,6 +834,10 @@ select {
   color: var(--bad);
 }
 
+.article-rail-delta.is-warn {
+  color: var(--warn);
+}
+
 .article-rail-delta.is-neutral {
   color: var(--neutral);
 }
@@ -755,6 +849,85 @@ select {
 
 .article-detail-grid {
   grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+}
+
+.opportunity-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.opportunity-kind-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.94)),
+    var(--surface-strong);
+  box-shadow: var(--shadow);
+}
+
+.opportunity-kind-card.is-active {
+  border-color: rgba(59, 130, 246, 0.24);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.12), rgba(255, 255, 255, 0.94));
+}
+
+.opportunity-kind-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+}
+
+.opportunity-kind-meta strong,
+.opportunity-kind-top strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  letter-spacing: -0.03em;
+}
+
+.opportunity-kind-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.opportunity-kind-card p,
+.opportunity-kind-top {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.opportunity-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.report-bullet-list {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.report-bullet-list li + li {
+  margin-top: 8px;
+}
+
+.opportunity-action-card .primary-button {
+  width: 100%;
 }
 
 .opportunity-stack {
@@ -853,6 +1026,12 @@ select {
   background: rgba(59, 130, 246, 0.04);
 }
 
+@keyframes skeleton-shift {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (max-width: 1180px) {
   .studio-shell {
     grid-template-columns: 1fr;
@@ -876,6 +1055,8 @@ select {
   .studio-context-strip,
   .scorecard-grid,
   .report-grid,
+  .loading-card-grid,
+  .opportunity-kind-grid,
   .article-layout,
   .article-detail-grid {
     grid-template-columns: 1fr;
@@ -913,7 +1094,8 @@ select {
   .report-status-card,
   .insight-card,
   .scorecard,
-  .report-panel {
+  .report-panel,
+  .loading-card {
     padding: 20px;
   }
 

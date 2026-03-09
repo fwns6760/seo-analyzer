@@ -268,6 +268,49 @@ GSC と GA4 から何を、どの粒度で、どのキーで保存するかを M
 - `category` はカテゴリ単位の流入変化確認に使う
 - 最終しきい値判定は `Epic 5` で別途定義する
 
+### rank_drop_page_rule
+- 対象は `entity_type = page`
+- 前週の `impressions >= 50`
+- `previous_position` と `current_position` が存在し、前週平均順位が `20` 位以内
+- `position_delta >= 1.0` を必須にし、順位悪化がない需要減ページは除外する
+- さらに次のどちらかを満たす
+- `previous_clicks >= 5` かつ `clicks_delta <= -3` かつ `clicks` 下落率が `20%` 以上
+- `previous_sessions >= 5` かつ `sessions_delta <= -3` かつ `sessions` 下落率が `20%` 以上
+- 並び順は `position_delta DESC -> clicks損失率 DESC -> sessions損失率 DESC -> previous_clicks DESC`
+
+### growth_page_rule
+- 対象は `entity_type = page`
+- 今週の `impressions >= 50`
+- `current_position` が存在し、今週平均順位が `20` 位以内
+- さらに次のどちらかを満たす
+- `previous_clicks >= 5` かつ `clicks_delta >= 3` かつ `clicks` 増加率が `20%` 以上
+- `previous_sessions >= 5` かつ `sessions_delta >= 3` かつ `sessions` 増加率が `20%` 以上
+- かつ次のどちらかを満たす
+- `previous_position` があり `position_delta <= -0.5`
+- `impressions_delta >= 30`
+- 並び順は `clicks増加率 DESC -> sessions増加率 DESC -> clicks_delta DESC -> current_position ASC`
+
+### rewrite_page_rule
+- 対象は `entity_type = page`
+- 今週の `impressions >= 80`
+- `current_position` が `6-20` 位
+- `current_ctr` が存在し `12%` 未満
+- 並び順は `current_impressions DESC -> current_position ASC -> current_ctr ASC -> current_clicks DESC`
+
+### cannibal_query_rule
+- 対象は `entity_type = query`
+- 今週の `current_support_count >= 2`
+- 今週の `impressions >= 80`
+- `current_position` が存在し `20` 位以内
+- 並び順は `current_support_count DESC -> current_impressions DESC -> current_clicks DESC -> current_position ASC`
+
+### mvp_opportunity_threshold_policy
+- `rank_drop` と `growth` はどちらも `20` 位以内の page を主戦場として扱い、守る候補と伸ばす候補を同じ検索面で比較できるようにする
+- `rank_drop` は前週母数を重視し、`growth` は今週母数を重視する
+- `rewrite` は `6-20` 位の中位ページに限定し、すでに上位定着した page や圏外 page と切り分ける
+- `cannibal` は `query` 単位で `support_count` と露出量を使い、page 系ルールとは別軸で判定する
+- `growth` と `rewrite` の重なりは許容し、伸びているが取り切れていない page を両面から見られるようにする
+
 ## MVP decision
 - 先に固定する raw は `raw_gsc` と `raw_ga4`
 - GSC は 4 grain、GA4 は 2 grain を保存する

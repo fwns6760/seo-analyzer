@@ -1,6 +1,18 @@
 import "server-only";
 
 import { runBigQueryQuery } from "@/utils/bigquery";
+import {
+  growthOrderByClause,
+  growthWhereClause,
+} from "@/utils/opportunity-growth";
+import {
+  rankDropOrderByClause,
+  rankDropWhereClause,
+} from "@/utils/opportunity-rank-drop";
+import {
+  rewriteOrderByClause,
+  rewriteWhereClause,
+} from "@/utils/opportunity-rewrite";
 
 export type DashboardOverview = {
   reference_end_date: string;
@@ -161,10 +173,9 @@ SELECT
   previous_sessions,
   sessions_delta
 FROM ${martTable("improvement_candidates_base")}
-WHERE entity_type = "page"
-  AND reference_end_date IS NOT NULL
-  AND current_clicks IS NOT NULL
-ORDER BY clicks_delta DESC, current_sessions DESC, current_impressions DESC
+WHERE reference_end_date IS NOT NULL
+  AND ${growthWhereClause}
+ORDER BY ${growthOrderByClause}
 LIMIT 5
 `;
 
@@ -185,12 +196,9 @@ SELECT
   previous_sessions,
   sessions_delta
 FROM ${martTable("improvement_candidates_base")}
-WHERE entity_type = "page"
-  AND reference_end_date IS NOT NULL
-  AND current_clicks IS NOT NULL
-  AND previous_clicks IS NOT NULL
-  AND (position_delta > 0.5 OR clicks_delta < 0)
-ORDER BY position_delta DESC, clicks_delta ASC, previous_clicks DESC
+WHERE reference_end_date IS NOT NULL
+  AND ${rankDropWhereClause}
+ORDER BY ${rankDropOrderByClause}
 LIMIT 5
 `;
 
@@ -211,12 +219,9 @@ SELECT
   previous_sessions,
   sessions_delta
 FROM ${martTable("improvement_candidates_base")}
-WHERE entity_type = "page"
-  AND reference_end_date IS NOT NULL
-  AND current_impressions >= 80
-  AND current_position BETWEEN 6 AND 20
-  AND current_ctr < 0.12
-ORDER BY current_impressions DESC, current_position ASC
+WHERE reference_end_date IS NOT NULL
+  AND ${rewriteWhereClause}
+ORDER BY ${rewriteOrderByClause}
 LIMIT 5
 `;
 

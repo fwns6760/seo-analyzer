@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
+import { notFound } from "next/navigation";
 import { getQueryAnalysisData } from "@/utils/queries";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +74,11 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
   noStore();
 
   const params = await searchParams;
-  const requestedQuery = typeof params.query === "string" && params.query.length > 0 ? params.query : null;
+  if (params.query !== undefined && (typeof params.query !== "string" || params.query.length === 0)) {
+    notFound();
+  }
+
+  const requestedQuery = typeof params.query === "string" ? params.query : null;
 
   const queryResult = await getQueryAnalysisData(requestedQuery)
     .then((data) => ({ data, error: null as string | null }))
@@ -82,6 +87,10 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
       error:
         error instanceof Error ? error.message : "BigQuery からクエリ分析データを取得できませんでした。",
     }));
+
+  if (!queryResult.error && queryResult.data?.requestedSelectionMissing) {
+    notFound();
+  }
 
   const selectedQuery = queryResult.data?.selectedQuery ?? null;
   const comparisonReady = selectedQuery ? selectedQuery.previous_impressions > 0 : false;

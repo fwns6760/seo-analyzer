@@ -10,6 +10,7 @@
     "start:sample": "node server.js",
     "gsc:check": "node scripts/gsc-connection-check.mjs",
     "ga4:check": "node scripts/ga4-connection-check.mjs",
+    "data:readiness": "node scripts/data-readiness-check.mjs",
     "batch:job": "node scripts/seo-batch-job.mjs",
     "batch:job:dry-run": "node scripts/seo-batch-job.mjs --dry-run"
   },
