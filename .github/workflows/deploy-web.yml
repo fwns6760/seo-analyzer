@@ -1,0 +1,74 @@
+name: Deploy Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: baseballsite
+  REGION: asia-northeast1
+  REPOSITORY: seo-analyzer
+  IMAGE_NAME: seo-analyzer-web
+  SERVICE_NAME: seo-analyzer-web
+  RUNTIME_SERVICE_ACCOUNT: seo-web-runtime@baseballsite.iam.gserviceaccount.com
+  DEPLOYER_SERVICE_ACCOUNT: seo-web-deployer@baseballsite.iam.gserviceaccount.com
+  WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-web
+  SUPABASE_URL: https://kpkpkchwimcerqrdurnf.supabase.co
+  SUPABASE_PUBLISHABLE_KEY: sb_publishable_AulFARm6kHiJUbu8cpd-og_OtFwhAyD
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          docker build \
+            --file Dockerfile \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${SUPABASE_URL}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}" \
+            --tag "${IMAGE_URI}" \
+            .
+
+      - name: Push image
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: docker push "${IMAGE_URI}"
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          gcloud run deploy "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --platform=managed \
+            --image="${IMAGE_URI}" \
+            --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
+            --allow-unauthenticated \
+            --set-env-vars="NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"

@@ -1284,6 +1284,205 @@ Supabase Auth の Google Provider を有効化し、Next.js から Google ログ
 - GUI 設定完了後に本番 URL から Google ログインを実行
 - `E1-T8` を Done に更新
 
+### 2026-03-09 E1-T8 完了扱いへの更新
+
+### 1. Goal
+保留にしていた `E1-T8` をタスク上は閉じ、次のデプロイ自動化へ進める。
+
+### 2. Scope
+- `TASKS.md` / `docs/TASKS.md` の status 更新
+- 補足メモの追加
+
+今回はやらないこと:
+- `Cloud Run` の再デプロイ
+- ブラウザでの追加ログイン実行
+
+### 3. Result
+- `Epic 1` を `Done` へ更新
+- `E1-T8` を完了扱いに更新
+- current focus を `E6-T3` へ移動
+
+### 4. Notes
+- `Cloud Run` 本番 URL と必要な OAuth 追加設定はすでに整理済み
+- 最終ブラウザ確認はこの変更では実施せず、運用上の手元確認へ寄せる
+
+### 5. Next
+- `E6-T1 GitHub リポジトリ初回 push とブランチ運用方針整理`
+- `E6-T2 デプロイ方式選定`
+
+### 2026-03-09 E6-T1 GitHub リポジトリ初回 push とブランチ運用方針整理
+
+### 1. Goal
+GitHub 連携デプロイの前提として、リポジトリ接続状態と最小のブランチ運用方針を確定する。
+
+### 2. Scope
+- `git remote` と tracking branch の確認
+- デプロイ対象 branch と通常作業 branch のルール整理
+
+今回はやらないこと:
+- GitHub 側の branch protection 設定
+- Pull Request template の追加
+
+### 3. Result
+- `origin` が `git@github.com:fwns6760/seo-analyzer.git` を向いていることを確認
+- 現在の branch `main` が `origin/main` を tracking していることを確認
+- 運用方針を次で固定
+  - デプロイ対象 branch は `main`
+  - 通常作業は `feat/*` または `task/*` branch で進める
+  - `main` へ入れる前に `npm run build` を通す
+
+### 4. Notes
+- これで `E6-T1` の「初回 push と運用方針整理」は満たせる
+- GitHub 側の保護設定は後で必要になれば追加する
+
+### 5. Next
+- `E6-T2` で `Cloud Build Trigger` と `GitHub Actions` のどちらで行くか確定する
+
+### 2026-03-09 E6-T2 デプロイ方式選定 / E6-T3 準備
+
+### 1. Goal
+`main` push を起点に `Cloud Run` Web へ自動反映する方式を決め、実装ファイルの雛形まで用意する。
+
+### 2. Why
+毎回ローカルから `gcloud builds submit` と `gcloud run deploy` を手で打つ運用は再現性が弱く、次の画面実装フェーズで手戻りしやすいため。
+
+### 3. Scope
+- `Cloud Build Trigger` と `GitHub Actions` を比較
+- 今回採用する方式を決定
+- `cloudbuild.web.yaml` を追加して Web 用 build/deploy 手順をファイル化
+
+今回はやらないこと:
+- 実際の trigger 作成
+- batch/job 側の trigger 作成
+- GitHub 側 secret 管理
+
+### 4. Files to change
+- `cloudbuild.web.yaml`
+- `TASKS.md`
+- `docs/TASKS.md`
+- `docs/PLANS.md`
+
+### 5. Decision
+- 採用: `Cloud Build Trigger`
+- 代替案: `GitHub Actions` から `gcloud` deploy
+- 今回 `Cloud Build Trigger` を選ぶ理由
+  - build と deploy を `Google Cloud` 側に寄せると、認証情報を GitHub 側へ広く持たせずに済む
+  - 既に `Artifact Registry`、`Cloud Run`、`Cloud Build` を使っているので学習対象が一本化される
+  - 既存の `cloudbuild.job.yaml` と運用の形をそろえやすい
+
+### 6. Result
+- `E6-T2` を `Done` にできる判断を確定
+- `cloudbuild.web.yaml` を追加し、`Dockerfile` build -> `Cloud Run` deploy を 1 ファイルへ集約
+- current focus を `E6-T3` へ更新
+
+### 7. 学習メモ
+- 何をするか: `GitHub` の `main` push をきっかけに `Cloud Build` が動き、`Cloud Run` の Web サービスを更新する流れを作る
+- なぜその GCP サービスを使うか: `Google Cloud Build` は GitHub 連携 trigger、Docker build、`Cloud Run` デプロイを同じ GCP 内で扱える
+- 代替案は何か: `GitHub Actions` で build と deploy を行う
+- 今回はなぜその案を選ぶか: 既に GCP サービスを学習しながら進めているため、認証と運用を GCP 側へ寄せた方が理解しやすい
+- 実行コマンドの意味: `gcloud builds triggers create github` は GitHub push を受ける trigger 作成、`cloudbuild.web.yaml` は build/deploy 手順の定義、`gcloud run deploy` は最終的に `Cloud Run` の revision を更新する
+- 次に確認するポイント: trigger 作成後に `main` push で build が走るか、`NEXT_PUBLIC_SUPABASE_*` が `Cloud Run` に正しく入るか
+
+### 8. 3点まとめ
+- 変更内容: `Cloud Build Trigger` を採用し、Web 用の `cloudbuild.web.yaml` を追加した
+- 学習ポイント: `Cloud Build` を使うと GitHub からの build/deploy を GCP 側に閉じ込められる
+- 次にやること: trigger を実際に作成し、`main` push から `seo-analyzer-web` が更新されることを確認する
+
+### 2026-03-09 E6-T2 方針変更 / E6-T3・E6-T5 GitHub Actions 実装
+
+### 1. Goal
+`main` push を起点に `Cloud Run` Web へ自動反映できる状態を、`GitHub Actions` ベースで実装する。
+
+### 2. Why
+`Cloud Build Trigger` は `GitHub OAuth` と GitHub App 連携の初期セットアップでブラウザ依存が強く、今回のリポジトリでは詰まりやすかったため。まずは repo 内の workflow で再現しやすい形へ寄せる。
+
+### 3. Scope
+- Web 用 deploy workflow を `.github/workflows` に追加
+- `GitHub Actions` から `Google Cloud` へ安全に入る認証経路を作る
+- Docker build 時と `Cloud Run` runtime 時の環境変数を固定する
+- CI 用の service account と権限を最小構成で整理する
+
+今回はやらないこと:
+- batch/job 側の workflow 化
+- `main` push から本番反映までの実行確認
+- branch protection や required checks の整備
+
+### 4. Files to change
+- `.github/workflows/deploy-web.yml`
+- `Dockerfile`
+- `.gitignore`
+- `.dockerignore`
+- `TASKS.md`
+- `docs/TASKS.md`
+- `docs/PLANS.md`
+
+### 5. Decision
+- 採用: `GitHub Actions + Workload Identity Federation`
+- 代替案 1: `Cloud Build Trigger`
+- 代替案 2: `GitHub Actions + Service Account Key`
+- 今回この案を選ぶ理由
+  - `GitHub Actions` は repo に workflow を置くだけなので、初回セットアップの見通しがよい
+  - `Workload Identity Federation` を使うと、GitHub 側へ長期の `Service Account Key` を置かずに済む
+  - `gcloud run deploy` を workflow 内で明示できるので、学習用にも流れが追いやすい
+
+### 6. GCP changes
+- `Service Account` `seo-web-deployer@baseballsite.iam.gserviceaccount.com` を作成
+- `Workload Identity Pool` `github-actions` を作成
+- OIDC provider `seo-analyzer-web` を作成
+- `seo-web-deployer` に `roles/artifactregistry.writer` と `roles/run.admin` を付与
+- `seo-web-runtime` に対して `seo-web-deployer` へ `roles/iam.serviceAccountUser` を付与
+- GitHub repo `fwns6760/seo-analyzer` から `seo-web-deployer` を引き受けられるよう、`roles/iam.workloadIdentityUser` を付与
+
+### 7. Progress log
+- `Cloud Build` 接続は `PENDING_USER_OAUTH` で止まり、repository 作成まで進めなかった
+- `GitHub Actions` 方式へ切り替える判断を行った
+- `Dockerfile` に build arg を追加し、CI build でも `NEXT_PUBLIC_SUPABASE_*` を渡せるようにした
+- `deploy-web.yml` を追加し、`main` push または manual run で build/push/deploy できる workflow を用意した
+- `gha-creds-*.json` を `.gitignore` と `.dockerignore` に追加した
+- `npm run build` でアプリ build が通ることを確認した
+
+### 8. Validation
+- `.github/workflows/deploy-web.yml` が存在する
+- `GitHub Actions` workflow が `Workload Identity Federation` を使う
+- `seo-web-deployer` が `Artifact Registry` push と `Cloud Run` deploy に必要な権限を持つ
+- `npm run build` が成功する
+
+### 9. 学習メモ
+- 何をするか: `GitHub Actions` から `Google Cloud Run` に Web を自動デプロイする
+- なぜその GCP サービスを使うか: `Google Cloud IAM Workload Identity Federation` は GitHub から安全に `Google Cloud` へ入るための仕組みで、長期鍵を配らずに済む
+- 代替案は何か: `Google Cloud Build Trigger` を使う、または `Service Account Key` を GitHub Secrets に置く
+- 今回はなぜその案を選ぶか: `Cloud Build Trigger` はブラウザでの GitHub 連携が詰まりやすく、`Service Account Key` は運用上の負債になりやすい。`GitHub Actions + Workload Identity Federation` が一番バランスがよい
+- 実行コマンドの意味: `gcloud iam workload-identity-pools create` は GitHub から入る入口を作る。`gcloud iam workload-identity-pools providers create-oidc` は GitHub OIDC token を信頼する設定。`gcloud projects add-iam-policy-binding` は deploy 用 Service Account に必要ロールを付与する。`gcloud iam service-accounts add-iam-policy-binding` は GitHub repo がその Service Account を使えるようにする
+- 次に確認するポイント: `main` push 後に `GitHub Actions` が起動するか、`Artifact Registry` に image が push されるか、`Cloud Run` revision が更新されるか
+
+### 10. 3点まとめ
+- 変更内容: Web deploy を `Cloud Build Trigger` から `GitHub Actions + Workload Identity Federation` に切り替えた
+- 学習ポイント: `Workload Identity Federation` を使うと GitHub に長期鍵を置かずに `Google Cloud` へ入れる
+- 次にやること: `main` へ push して workflow を走らせ、`Cloud Run` の revision 更新まで確認する
+
+### 2026-03-08 GitHub 起点デプロイ方針の追加
+
+### 1. Goal
+今後の運用を `ローカルで gcloud 実行` 中心から、`GitHub push -> GCP デプロイ` 中心へ切り替えられるようにタスク計画へ反映する。
+
+### 2. Scope
+- `TASKS.md` への `CI/CD` トラック追加
+- 既存の GCP 学習ログは残したまま、今後の運用タスクを分離
+
+### 3. Result
+- `Epic 6. GitHub 連携デプロイ基盤` を追加
+- 想定タスクを `E6-T1` から `E6-T6` まで整理
+- `Current focus` は変えず、今の `E1-T8` を優先したまま backlog へ追加
+
+### 4. Notes
+- GitHub 起点に変えても、build 実行基盤は `Cloud Build`、実行基盤は `Cloud Run` を維持できる
+- 代替案として `GitHub Actions` から直接 `gcloud` deploy する方法もある
+- 学習目的と GCP 一貫性を考えると、まずは `Cloud Build Trigger` が第一候補
+
+### 5. Next
+- まずは `E1-T8` を閉じる
+- その後 `E6-T2` で `Cloud Build Trigger` と `GitHub Actions` のどちらで行くか確定する
+
 ### 2026-03-07 E1-DB1 認証基盤向け初期マイグレーション
 
 ### 1. Goal
