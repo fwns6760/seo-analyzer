@@ -20,6 +20,10 @@ WITH gsc_query_daily AS (
   FROM `baseballsite.seo_raw.raw_gsc`
   WHERE grain = "query_daily"
     AND query IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY data_date, site_url, query
+    ORDER BY fetched_at DESC, batch_id DESC
+  ) = 1
 ),
 gsc_page_query_ranked AS (
   SELECT
@@ -36,6 +40,10 @@ gsc_page_query_ranked AS (
   WHERE grain = "page_query_daily"
     AND query IS NOT NULL
     AND page IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY data_date, site_url, query, page
+    ORDER BY fetched_at DESC, batch_id DESC
+  ) = 1
 ),
 gsc_page_query_rollup AS (
   SELECT

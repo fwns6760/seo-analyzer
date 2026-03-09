@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import {
   getDashboardData,
@@ -86,9 +87,12 @@ function getPageLabel(path: string) {
 }
 
 function getOpportunityHref(item: DashboardOpportunity) {
-  return item.entity_label.startsWith("http")
-    ? item.entity_label
-    : `https://yoshilover.com${item.entity_key}`;
+  return {
+    pathname: "/articles",
+    query: {
+      page: item.entity_key,
+    },
+  };
 }
 
 function renderOpportunityStats(groupId: OpportunityGroup["id"], item: DashboardOpportunity) {
@@ -331,9 +335,9 @@ export default async function HomePage() {
                         <ul className="opportunity-list">
                           {group.items.map((item) => (
                             <li className="opportunity-item" key={`${group.id}-${item.entity_key}`}>
-                              <a href={getOpportunityHref(item)} rel="noreferrer" target="_blank">
+                              <Link href={getOpportunityHref(item)}>
                                 {getPageLabel(item.entity_key)}
-                              </a>
+                              </Link>
                               <p>{renderOpportunityStats(group.id, item)}</p>
                             </li>
                           ))}
@@ -375,9 +379,16 @@ export default async function HomePage() {
                         {dashboardResult.data?.topPages.map((page) => (
                           <tr key={page.page_path}>
                             <td>
-                              <a href={page.canonical_url} rel="noreferrer" target="_blank">
+                              <Link
+                                href={{
+                                  pathname: "/articles",
+                                  query: {
+                                    page: page.page_path,
+                                  },
+                                }}
+                              >
                                 {getPageLabel(page.page_path)}
-                              </a>
+                              </Link>
                             </td>
                             <td>{formatMetricValue(page.clicks, "number")}</td>
                             <td>{formatMetricValue(page.impressions, "number")}</td>

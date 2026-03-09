@@ -37,6 +37,10 @@ WITH gsc_page_daily AS (
     position
   FROM `baseballsite.seo_raw.raw_gsc`
   WHERE grain = "page_daily"
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY data_date, site_url, page
+    ORDER BY fetched_at DESC, batch_id DESC
+  ) = 1
 ),
 ga4_landing_page_daily AS (
   SELECT
@@ -68,6 +72,10 @@ ga4_landing_page_daily AS (
   FROM `baseballsite.seo_raw.raw_ga4`
   WHERE grain = "landing_page_daily"
     AND session_default_channel_group = "Organic Search"
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY data_date, property_id, landing_page, session_default_channel_group
+    ORDER BY fetched_at DESC, batch_id DESC
+  ) = 1
 ),
 joined AS (
   SELECT

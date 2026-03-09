@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { StudioNav } from "@/components/studio-nav";
 import { createClient } from "@/utils/supabase/server";
 
 const primaryNavItems = [
@@ -6,25 +7,19 @@ const primaryNavItems = [
     label: "ダッシュボード",
     detail: "KPI overview",
     href: "/",
-    state: "active" as const,
   },
   {
     label: "記事分析",
     detail: "Page deep dive",
-    href: null,
-    state: "upcoming" as const,
+    href: "/articles",
   },
   {
     label: "クエリ分析",
     detail: "Search intent",
-    href: null,
-    state: "upcoming" as const,
   },
   {
     label: "改善候補",
     detail: "Opportunity feed",
-    href: null,
-    state: "upcoming" as const,
   },
 ];
 
@@ -76,22 +71,7 @@ export default async function ProtectedLayout({
 
         <section className="studio-sidebar-section">
           <span className="studio-section-label">Views</span>
-          <nav className="studio-nav" aria-label="Primary">
-            {primaryNavItems.map((item) =>
-              item.href ? (
-                <a className="studio-nav-item is-active" href={item.href} key={item.label}>
-                  <span className="studio-nav-kicker">{item.detail}</span>
-                  <strong>{item.label}</strong>
-                </a>
-              ) : (
-                <div className="studio-nav-item is-upcoming" key={item.label}>
-                  <span className="studio-nav-kicker">{item.detail}</span>
-                  <strong>{item.label}</strong>
-                  <span className="studio-nav-tag">Soon</span>
-                </div>
-              ),
-            )}
-          </nav>
+          <StudioNav items={primaryNavItems} />
         </section>
 
         <section className="studio-sidebar-section studio-sidebar-footer">
