@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPublicUrl } from "@/utils/request-url";
 import { createClient } from "@/utils/supabase/server";
 
 export async function GET(request: Request) {
@@ -19,18 +20,7 @@ export async function GET(request: Request) {
         next,
         hasCode: true,
       });
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = process.env.NODE_ENV === "development";
-
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${requestUrl.origin}${next}`);
-      }
-
-      if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      }
-
-      return NextResponse.redirect(`${requestUrl.origin}${next}`);
+      return NextResponse.redirect(getPublicUrl(request, next));
     }
 
     console.error("supabase.auth.exchangeCodeForSession failed", {
@@ -47,5 +37,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.redirect(`${requestUrl.origin}/auth/auth-code-error`);
+  return NextResponse.redirect(getPublicUrl(request, "/auth/auth-code-error"));
 }

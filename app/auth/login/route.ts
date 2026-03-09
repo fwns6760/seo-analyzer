@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
+import { getPublicUrl } from "@/utils/request-url";
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   const rawNext = formData.get("next");
   const next = typeof rawNext === "string" && rawNext.startsWith("/") ? rawNext : "/";
-  const requestUrl = new URL(request.url);
-  const redirectTo = `${requestUrl.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  const redirectTo = getPublicUrl(request, `/auth/callback?next=${encodeURIComponent(next)}`);
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       next,
       redirectTo,
     });
-    return NextResponse.redirect(`${requestUrl.origin}/login?error=oauth_start_failed`, 303);
+    return NextResponse.redirect(getPublicUrl(request, "/login?error=oauth_start_failed"), 303);
   }
 
   console.log("supabase.auth.signInWithOAuth success", {
