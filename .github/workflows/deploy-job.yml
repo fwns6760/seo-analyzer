@@ -1,21 +1,15 @@
-name: Deploy Web
+name: Deploy Batch Job
 
 on:
   push:
     branches:
       - main
     paths:
-      - ".github/workflows/deploy-web.yml"
-      - "app/**"
-      - "utils/**"
-      - "Dockerfile"
-      - "next.config.ts"
+      - ".github/workflows/deploy-job.yml"
+      - "Dockerfile.job"
       - "package.json"
       - "package-lock.json"
-      - "proxy.ts"
-      - "server.js"
-      - "tsconfig.json"
-      - "next-env.d.ts"
+      - "scripts/**"
   workflow_dispatch:
 
 permissions:
@@ -26,13 +20,11 @@ env:
   PROJECT_ID: baseballsite
   REGION: asia-northeast1
   REPOSITORY: seo-analyzer
-  IMAGE_NAME: seo-analyzer-web
-  SERVICE_NAME: seo-analyzer-web
-  RUNTIME_SERVICE_ACCOUNT: seo-web-runtime@baseballsite.iam.gserviceaccount.com
-  DEPLOYER_SERVICE_ACCOUNT: seo-web-deployer@baseballsite.iam.gserviceaccount.com
-  WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-web
-  SUPABASE_URL: https://kpkpkchwimcerqrdurnf.supabase.co
-  SUPABASE_PUBLISHABLE_KEY: sb_publishable_AulFARm6kHiJUbu8cpd-og_OtFwhAyD
+  IMAGE_NAME: seo-batch-job
+  JOB_NAME: seo-fetch-job
+  RUNTIME_SERVICE_ACCOUNT: seo-batch-runtime@baseballsite.iam.gserviceaccount.com
+  DEPLOYER_SERVICE_ACCOUNT: seo-batch-deployer@baseballsite.iam.gserviceaccount.com
+  WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-batch
 
 jobs:
   deploy:
@@ -61,9 +53,7 @@ jobs:
           IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
           docker build \
-            --file Dockerfile \
-            --build-arg NEXT_PUBLIC_SUPABASE_URL="${SUPABASE_URL}" \
-            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}" \
+            --file Dockerfile.job \
             --tag "${IMAGE_URI}" \
             .
 
@@ -72,15 +62,19 @@ jobs:
           IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: docker push "${IMAGE_URI}"
 
-      - name: Deploy to Cloud Run
+      - name: Deploy Cloud Run Job
         env:
           IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
-          gcloud run deploy "${SERVICE_NAME}" \
+          gcloud run jobs update "${JOB_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
-            --platform=managed \
             --image="${IMAGE_URI}" \
             --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
-            --allow-unauthenticated \
-            --set-env-vars="NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+            --set-env-vars="BATCH_TARGET=all,DRY_RUN=false,DEFAULT_DELAY_DAYS=3,DEFAULT_WINDOW_DAYS=1,BIGQUERY_PROJECT_ID=${PROJECT_ID},BIGQUERY_RAW_DATASET=seo_raw" \
+            --set-secrets="GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,GOOGLE_OAUTH_REFRESH_TOKEN=google-oauth-refresh-token:latest" \
+            --max-retries=0 \
+            --tasks=1 \
+            --task-timeout=600s \
+            --cpu=1 \
+            --memory=512Mi
