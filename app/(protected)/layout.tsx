@@ -17,6 +17,7 @@ const primaryNavItems = [
   {
     label: "クエリ分析",
     detail: "Search intent",
+    href: "/queries",
   },
   {
     label: "改善候補",

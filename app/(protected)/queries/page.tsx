@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
-import { getArticleAnalysisData } from "@/utils/articles";
+import { getQueryAnalysisData } from "@/utils/queries";
 
 export const dynamic = "force-dynamic";
 
-type ArticlePageProps = {
+type QueryPageProps = {
   searchParams: Promise<{
-    page?: string;
+    query?: string;
   }>;
 };
 
@@ -51,120 +51,111 @@ function formatDisplayDate(value: string) {
   }).format(new Date(`${value}T00:00:00+09:00`));
 }
 
-function getPageLabel(path: string) {
-  if (path === "/") {
-    return "トップページ";
-  }
-
-  return path;
-}
-
-export default async function ArticleAnalysisPage({ searchParams }: ArticlePageProps) {
+export default async function QueryAnalysisPage({ searchParams }: QueryPageProps) {
   noStore();
 
   const params = await searchParams;
-  const requestedPage =
-    typeof params.page === "string" && params.page.startsWith("/") ? params.page : null;
+  const requestedQuery = typeof params.query === "string" && params.query.length > 0 ? params.query : null;
 
-  const articleResult = await getArticleAnalysisData(requestedPage)
+  const queryResult = await getQueryAnalysisData(requestedQuery)
     .then((data) => ({ data, error: null as string | null }))
     .catch((error: unknown) => ({
       data: null,
       error:
-        error instanceof Error ? error.message : "BigQuery から記事分析データを取得できませんでした。",
+        error instanceof Error ? error.message : "BigQuery からクエリ分析データを取得できませんでした。",
     }));
 
-  const selectedPage = articleResult.data?.selectedPage ?? null;
-  const comparisonReady = selectedPage ? selectedPage.previous_impressions > 0 : false;
+  const selectedQuery = queryResult.data?.selectedQuery ?? null;
+  const comparisonReady = selectedQuery ? selectedQuery.previous_impressions > 0 : false;
 
   return (
     <div className="report-page">
       <section className="report-header-card">
         <div className="report-header-copy">
-          <p className="eyebrow">Page report</p>
-          <h2>記事分析</h2>
+          <p className="eyebrow">Query report</p>
+          <h2>クエリ分析</h2>
           <p className="lede">
-            記事単位で、今週の検索流入、前週差、直近推移、流入クエリを 1 画面で確認します。
+            検索クエリ単位で、今週の獲得状況、前週差、日次推移、紐づくページを確認します。
           </p>
         </div>
 
-        {selectedPage ? (
+        {selectedQuery ? (
           <div className="report-toolbar">
             <div className="report-filter-chip">
-              <span>Selected page</span>
-              <strong>{getPageLabel(selectedPage.page_path)}</strong>
+              <span>Selected query</span>
+              <strong>{selectedQuery.query}</strong>
             </div>
             <div className="report-filter-chip">
               <span>Reference date</span>
-              <strong>{formatDisplayDate(selectedPage.reference_end_date)}</strong>
+              <strong>{formatDisplayDate(selectedQuery.reference_end_date)}</strong>
             </div>
             <div className="report-filter-chip">
               <span>Current 7d clicks</span>
-              <strong>{formatMetricValue(selectedPage.current_clicks, "number")}</strong>
+              <strong>{formatMetricValue(selectedQuery.current_clicks, "number")}</strong>
             </div>
           </div>
         ) : null}
       </section>
 
-      {articleResult.error ? (
+      {queryResult.error ? (
         <section className="panel report-status-card">
           <h2>BigQuery 接続エラー</h2>
           <p className="lede">
-            記事分析画面の読み込みに失敗しました。mart view の更新と `seo-web-runtime`
+            クエリ分析画面の読み込みに失敗しました。mart view の更新と `seo-web-runtime`
             の BigQuery 権限を確認してください。
           </p>
           <div className="error-box">
-            <strong>取得エラー:</strong> <span className="mono">{articleResult.error}</span>
+            <strong>取得エラー:</strong> <span className="mono">{queryResult.error}</span>
           </div>
         </section>
       ) : null}
 
-      {!articleResult.error && !selectedPage ? (
+      {!queryResult.error && !selectedQuery ? (
         <section className="panel report-status-card">
           <h2>データ待ち</h2>
           <p className="lede">
-            まだ記事分析に使える `page_daily` データがありません。batch 収集後に一覧を表示します。
+            まだクエリ分析に使える `query_daily` データがありません。batch 収集後に一覧を表示します。
           </p>
         </section>
       ) : null}
 
-      {selectedPage ? (
+      {selectedQuery ? (
         <section className="article-layout">
           <aside className="panel article-rail">
             <div className="article-rail-header">
               <div>
-                <p className="eyebrow">Page index</p>
-                <h2>記事一覧</h2>
+                <p className="eyebrow">Query index</p>
+                <h2>クエリ一覧</h2>
               </div>
               <span className="article-rail-count">
-                {articleResult.data?.leaderboard.length ?? 0} pages
+                {queryResult.data?.leaderboard.length ?? 0} queries
               </span>
             </div>
 
             <div className="article-rail-list">
-              {articleResult.data?.leaderboard.map((page) => {
-                const isActive = page.page_path === selectedPage.page_path;
+              {queryResult.data?.leaderboard.map((queryItem) => {
+                const isActive = queryItem.query === selectedQuery.query;
 
                 return (
                   <Link
                     className={`article-rail-item ${isActive ? "is-active" : ""}`}
                     href={{
-                      pathname: "/articles",
+                      pathname: "/queries",
                       query: {
-                        page: page.page_path,
+                        query: queryItem.query,
                       },
                     }}
-                    key={page.page_path}
+                    key={queryItem.query}
                   >
                     <div className="article-rail-copy">
-                      <strong>{getPageLabel(page.page_path)}</strong>
+                      <strong>{queryItem.query}</strong>
                       <p>
-                        クリック {formatMetricValue(page.current_clicks, "number")} / Sessions{" "}
-                        {formatMetricValue(page.current_sessions, "number")}
+                        クリック {formatMetricValue(queryItem.current_clicks, "number")} / 表示{" "}
+                        {formatMetricValue(queryItem.current_impressions, "number")}
                       </p>
                     </div>
                     <span className="article-rail-delta">
-                      {formatMetricDelta(page.current_clicks, page.previous_clicks, "number")}
+                      {formatMetricDelta(queryItem.current_clicks, queryItem.previous_clicks, "number")}
                     </span>
                   </Link>
                 );
@@ -175,19 +166,29 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
           <div className="article-content">
             <section className="insight-strip">
               <article className="panel insight-card">
-                <span className="label">Selected article</span>
-                <strong>{getPageLabel(selectedPage.page_path)}</strong>
-                <p>{selectedPage.canonical_url}</p>
+                <span className="label">Selected query</span>
+                <strong>{selectedQuery.query}</strong>
+                <p>
+                  top page {selectedQuery.top_page_path ?? "未特定"} / max page count{" "}
+                  {formatMetricValue(selectedQuery.max_page_count, "number")}
+                </p>
               </article>
               <article className="panel insight-card">
                 <span className="label">7d clicks</span>
-                <strong>{formatMetricValue(selectedPage.current_clicks, "number")}</strong>
-                <p>前週差 {formatMetricDelta(selectedPage.current_clicks, selectedPage.previous_clicks, "number")}</p>
+                <strong>{formatMetricValue(selectedQuery.current_clicks, "number")}</strong>
+                <p>
+                  前週差{" "}
+                  {formatMetricDelta(
+                    selectedQuery.current_clicks,
+                    selectedQuery.previous_clicks,
+                    "number",
+                  )}
+                </p>
               </article>
               <article className="panel insight-card">
                 <span className="label">Tracked days</span>
-                <strong>{articleResult.data?.trend.length ?? 0} 日</strong>
-                <p>直近 14 日の履歴と流入クエリを表示</p>
+                <strong>{queryResult.data?.trend.length ?? 0} 日</strong>
+                <p>直近 14 日の履歴と紐づくページ一覧を表示</p>
               </article>
             </section>
 
@@ -195,10 +196,10 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
               <div className="report-section-header">
                 <div>
                   <p className="eyebrow">Scorecards</p>
-                  <h2>ページ KPI</h2>
+                  <h2>クエリ KPI</h2>
                 </div>
                 <p className="section-caption">
-                  記事単位の scorecard です。前週比較がまだない期間は今週値だけを見ます。
+                  query_daily を使って、クエリ単位のクリック・表示・CTR・順位をまとめています。
                 </p>
               </div>
 
@@ -208,14 +209,18 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="label">クリック数</span>
                     <span className="scorecard-source">Search Console</span>
                   </div>
-                  <strong>{formatMetricValue(selectedPage.current_clicks, "number")}</strong>
+                  <strong>{formatMetricValue(selectedQuery.current_clicks, "number")}</strong>
                   <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
                     {comparisonReady
-                      ? formatMetricDelta(selectedPage.current_clicks, selectedPage.previous_clicks, "number")
+                      ? formatMetricDelta(
+                          selectedQuery.current_clicks,
+                          selectedQuery.previous_clicks,
+                          "number",
+                        )
                       : "前週比較は蓄積中"}
                   </p>
                   <p className="scorecard-baseline">
-                    前週 {formatMetricValue(selectedPage.previous_clicks, "number")}
+                    前週 {formatMetricValue(selectedQuery.previous_clicks, "number")}
                   </p>
                 </article>
 
@@ -224,18 +229,38 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="label">表示回数</span>
                     <span className="scorecard-source">Search Console</span>
                   </div>
-                  <strong>{formatMetricValue(selectedPage.current_impressions, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-neutral" : "is-neutral"}`}>
+                  <strong>{formatMetricValue(selectedQuery.current_impressions, "number")}</strong>
+                  <p className="scorecard-delta is-neutral">
                     {comparisonReady
                       ? formatMetricDelta(
-                          selectedPage.current_impressions,
-                          selectedPage.previous_impressions,
+                          selectedQuery.current_impressions,
+                          selectedQuery.previous_impressions,
                           "number",
                         )
                       : "前週比較は蓄積中"}
                   </p>
                   <p className="scorecard-baseline">
-                    前週 {formatMetricValue(selectedPage.previous_impressions, "number")}
+                    前週 {formatMetricValue(selectedQuery.previous_impressions, "number")}
+                  </p>
+                </article>
+
+                <article className="panel scorecard">
+                  <div className="scorecard-meta">
+                    <span className="label">CTR</span>
+                    <span className="scorecard-source">Search Console</span>
+                  </div>
+                  <strong>{formatMetricValue(selectedQuery.current_ctr ?? 0, "percent")}</strong>
+                  <p className="scorecard-delta is-neutral">
+                    {comparisonReady
+                      ? formatMetricDelta(
+                          selectedQuery.current_ctr ?? 0,
+                          selectedQuery.previous_ctr ?? 0,
+                          "percent",
+                        )
+                      : "前週比較は蓄積中"}
+                  </p>
+                  <p className="scorecard-baseline">
+                    前週 {formatMetricValue(selectedQuery.previous_ctr ?? 0, "percent")}
                   </p>
                 </article>
 
@@ -244,59 +269,33 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="label">平均掲載順位</span>
                     <span className="scorecard-source">Search Console</span>
                   </div>
-                  <strong>{formatMetricValue(selectedPage.current_position ?? 0, "position")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-neutral" : "is-neutral"}`}>
+                  <strong>{formatMetricValue(selectedQuery.current_position ?? 0, "position")}</strong>
+                  <p className="scorecard-delta is-neutral">
                     {comparisonReady
                       ? formatMetricDelta(
-                          selectedPage.current_position ?? 0,
-                          selectedPage.previous_position ?? 0,
+                          selectedQuery.current_position ?? 0,
+                          selectedQuery.previous_position ?? 0,
                           "position",
                         )
                       : "前週比較は蓄積中"}
                   </p>
                   <p className="scorecard-baseline">
-                    前週 {formatMetricValue(selectedPage.previous_position ?? 0, "position")}
+                    前週 {formatMetricValue(selectedQuery.previous_position ?? 0, "position")}
                   </p>
                 </article>
 
                 <article className="panel scorecard">
                   <div className="scorecard-meta">
-                    <span className="label">Organic Sessions</span>
-                    <span className="scorecard-source">Analytics 4</span>
+                    <span className="label">Page count</span>
+                    <span className="scorecard-source">Search Console</span>
                   </div>
-                  <strong>{formatMetricValue(selectedPage.current_sessions, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
-                    {comparisonReady
-                      ? formatMetricDelta(
-                          selectedPage.current_sessions,
-                          selectedPage.previous_sessions,
-                          "number",
-                        )
-                      : "前週比較は蓄積中"}
+                  <strong>{formatMetricValue(selectedQuery.max_page_count, "number")}</strong>
+                  <p className="scorecard-delta is-neutral">
+                    {selectedQuery.max_page_count >= 2
+                      ? "複数ページに分散"
+                      : "単一ページ中心"}
                   </p>
-                  <p className="scorecard-baseline">
-                    前週 {formatMetricValue(selectedPage.previous_sessions, "number")}
-                  </p>
-                </article>
-
-                <article className="panel scorecard">
-                  <div className="scorecard-meta">
-                    <span className="label">Organic Users</span>
-                    <span className="scorecard-source">Analytics 4</span>
-                  </div>
-                  <strong>{formatMetricValue(selectedPage.current_total_users, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
-                    {comparisonReady
-                      ? formatMetricDelta(
-                          selectedPage.current_total_users,
-                          selectedPage.previous_total_users,
-                          "number",
-                        )
-                      : "前週比較は蓄積中"}
-                  </p>
-                  <p className="scorecard-baseline">
-                    前週 {formatMetricValue(selectedPage.previous_total_users, "number")}
-                  </p>
+                  <p className="scorecard-baseline">current_7d 最大値</p>
                 </article>
               </div>
             </section>
@@ -309,7 +308,7 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <h2>直近 14 日の推移</h2>
                   </div>
                   <p className="section-caption">
-                    Search Console と Analytics 4 が両方あるかも日別で確認できます。
+                    日別の page_count と top page も同時に確認できます。
                   </p>
                 </div>
 
@@ -323,20 +322,20 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                           <th>表示</th>
                           <th>CTR</th>
                           <th>順位</th>
-                          <th>Sessions</th>
-                          <th>Source</th>
+                          <th>Page count</th>
+                          <th>Top page</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {articleResult.data?.trend.map((point) => (
+                        {queryResult.data?.trend.map((point) => (
                           <tr key={point.data_date}>
                             <td>{formatDisplayDate(point.data_date)}</td>
-                            <td>{formatMetricValue(point.clicks ?? 0, "number")}</td>
-                            <td>{formatMetricValue(point.impressions ?? 0, "number")}</td>
+                            <td>{formatMetricValue(point.clicks, "number")}</td>
+                            <td>{formatMetricValue(point.impressions, "number")}</td>
                             <td>{formatMetricValue(point.ctr ?? 0, "percent")}</td>
                             <td>{formatMetricValue(point.position ?? 0, "position")}</td>
-                            <td>{formatMetricValue(point.sessions ?? 0, "number")}</td>
-                            <td>{point.source_match_status}</td>
+                            <td>{formatMetricValue(point.page_count, "number")}</td>
+                            <td>{point.top_page_path ?? "NULL"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -348,21 +347,21 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
               <section className="report-section report-column report-column-narrow">
                 <div className="report-section-header">
                   <div>
-                    <p className="eyebrow">Top queries</p>
-                    <h2>流入クエリ</h2>
+                    <p className="eyebrow">Page distribution</p>
+                    <h2>紐づくページ</h2>
                   </div>
                   <p className="section-caption">
-                    `page_query_daily` から、このページを押している検索語を見ます。
+                    page_query_daily の集計です。記事分析へそのまま飛べます。
                   </p>
                 </div>
 
                 <div className="panel report-panel">
-                  {articleResult.data?.queries.length ? (
+                  {queryResult.data?.pages.length ? (
                     <div className="table-wrap">
                       <table className="dashboard-table query-breakdown-table">
                         <thead>
                           <tr>
-                            <th>クエリ</th>
+                            <th>ページ</th>
                             <th>クリック</th>
                             <th>表示</th>
                             <th>CTR</th>
@@ -370,24 +369,24 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                           </tr>
                         </thead>
                         <tbody>
-                          {articleResult.data?.queries.map((item) => (
-                            <tr key={item.query}>
+                          {queryResult.data.pages.map((page) => (
+                            <tr key={page.page_path}>
                               <td>
                                 <Link
                                   href={{
-                                    pathname: "/queries",
+                                    pathname: "/articles",
                                     query: {
-                                      query: item.query,
+                                      page: page.page_path,
                                     },
                                   }}
                                 >
-                                  {item.query}
+                                  {page.page_path}
                                 </Link>
                               </td>
-                              <td>{formatMetricValue(item.clicks, "number")}</td>
-                              <td>{formatMetricValue(item.impressions, "number")}</td>
-                              <td>{formatMetricValue(item.ctr ?? 0, "percent")}</td>
-                              <td>{formatMetricValue(item.position ?? 0, "position")}</td>
+                              <td>{formatMetricValue(page.clicks, "number")}</td>
+                              <td>{formatMetricValue(page.impressions, "number")}</td>
+                              <td>{formatMetricValue(page.ctr ?? 0, "percent")}</td>
+                              <td>{formatMetricValue(page.position ?? 0, "position")}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -395,7 +394,7 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     </div>
                   ) : (
                     <div className="empty-state">
-                      このページに紐づく `page_query_daily` データがまだありません。
+                      このクエリに紐づく `page_query_daily` データがまだありません。
                     </div>
                   )}
                 </div>
