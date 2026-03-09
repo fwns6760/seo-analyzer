@@ -10,8 +10,8 @@
 - Supabase Callback URL: `https://kpkpkchwimcerqrdurnf.supabase.co/auth/v1/callback`
 - ローカル開発 URL: `http://localhost:3000`
 - Next.js 側 callback 予定: `http://localhost:3000/auth/callback`
-- Cloud Run 本番 URL: `https://seo-analyzer-web-487178857517.asia-northeast1.run.app`
-- Cloud Run 本番 callback 予定: `https://seo-analyzer-web-487178857517.asia-northeast1.run.app/auth/callback`
+- Cloud Run 本番 URL: `https://seo-analyzer-web-n5hunzkyna-an.a.run.app`
+- Cloud Run 本番 callback: `https://seo-analyzer-web-n5hunzkyna-an.a.run.app/auth/callback`
 
 ## 2. Google Cloud Console 側
 
@@ -29,7 +29,7 @@
 - Name: `seo-analyzer-supabase-web`
 - Authorized JavaScript origins:
   - `http://localhost:3000`
-  - `https://seo-analyzer-web-487178857517.asia-northeast1.run.app`
+  - `https://seo-analyzer-web-n5hunzkyna-an.a.run.app`
 - Authorized redirect URIs:
   - `https://kpkpkchwimcerqrdurnf.supabase.co/auth/v1/callback`
 
@@ -87,7 +87,7 @@
 
 本番 URL が決まったら追加:
 
-- `https://seo-analyzer-web-487178857517.asia-northeast1.run.app/auth/callback`
+- `https://seo-analyzer-web-n5hunzkyna-an.a.run.app/auth/callback`
 
 ## 5. 完了判定
 
@@ -97,6 +97,10 @@
 2. Google 側 redirect URI に Supabase Callback URL を登録
 3. Supabase の Google provider に Client ID / Secret を保存
 4. Supabase の redirect allow list に `http://localhost:3000/auth/callback` を追加
+
+本番確認の追加チェック:
+
+5. Supabase の redirect allow list に `https://seo-analyzer-web-n5hunzkyna-an.a.run.app/auth/callback` を追加
 
 ## 6. 次タスクへの接続
 
