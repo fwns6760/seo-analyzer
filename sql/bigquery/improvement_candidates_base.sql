@@ -50,13 +50,23 @@ page_aggregated AS (
   WHERE period_name IS NOT NULL
   GROUP BY entity_key, entity_label, period_name
 ),
+page_current AS (
+  SELECT *
+  FROM page_aggregated
+  WHERE period_name = "current_7d"
+),
+page_previous AS (
+  SELECT *
+  FROM page_aggregated
+  WHERE period_name = "previous_7d"
+),
 page_signals AS (
   SELECT
     a.reference_end_date,
     "page" AS entity_type,
     COALESCE(c.entity_key, p.entity_key) AS entity_key,
     COALESCE(c.entity_label, p.entity_label) AS entity_label,
-    NULL AS supporting_key,
+    CAST(NULL AS STRING) AS supporting_key,
     c.clicks AS current_clicks,
     p.clicks AS previous_clicks,
     COALESCE(c.clicks, 0) - COALESCE(p.clicks, 0) AS clicks_delta,
@@ -84,12 +94,10 @@ page_signals AS (
     TRUE AS supports_growth,
     TRUE AS supports_rewrite,
     FALSE AS supports_cannibal
-  FROM anchor AS a
-  LEFT JOIN page_aggregated AS c
-    ON c.period_name = "current_7d"
-  FULL OUTER JOIN page_aggregated AS p
-    ON p.period_name = "previous_7d"
-   AND c.entity_key = p.entity_key
+  FROM page_current AS c
+  FULL OUTER JOIN page_previous AS p
+    ON c.entity_key = p.entity_key
+  CROSS JOIN anchor AS a
 ),
 query_support AS (
   SELECT
@@ -126,13 +134,23 @@ query_aggregated AS (
   WHERE period_name IS NOT NULL
   GROUP BY entity_key, entity_label, period_name
 ),
+query_current AS (
+  SELECT *
+  FROM query_aggregated
+  WHERE period_name = "current_7d"
+),
+query_previous AS (
+  SELECT *
+  FROM query_aggregated
+  WHERE period_name = "previous_7d"
+),
 query_signals AS (
   SELECT
     a.reference_end_date,
     "query" AS entity_type,
     COALESCE(c.entity_key, p.entity_key) AS entity_key,
     COALESCE(c.entity_label, p.entity_label) AS entity_label,
-    NULL AS supporting_key,
+    CAST(NULL AS STRING) AS supporting_key,
     c.clicks AS current_clicks,
     p.clicks AS previous_clicks,
     COALESCE(c.clicks, 0) - COALESCE(p.clicks, 0) AS clicks_delta,
@@ -160,12 +178,10 @@ query_signals AS (
     FALSE AS supports_growth,
     FALSE AS supports_rewrite,
     TRUE AS supports_cannibal
-  FROM anchor AS a
-  LEFT JOIN query_aggregated AS c
-    ON c.period_name = "current_7d"
-  FULL OUTER JOIN query_aggregated AS p
-    ON p.period_name = "previous_7d"
-   AND c.entity_key = p.entity_key
+  FROM query_current AS c
+  FULL OUTER JOIN query_previous AS p
+    ON c.entity_key = p.entity_key
+  CROSS JOIN anchor AS a
 ),
 category_periodized AS (
   SELECT
@@ -210,6 +226,16 @@ category_aggregated AS (
   WHERE period_name IS NOT NULL
   GROUP BY entity_key, entity_label, supporting_key, period_name
 ),
+category_current AS (
+  SELECT *
+  FROM category_aggregated
+  WHERE period_name = "current_7d"
+),
+category_previous AS (
+  SELECT *
+  FROM category_aggregated
+  WHERE period_name = "previous_7d"
+),
 category_signals AS (
   SELECT
     a.reference_end_date,
@@ -244,12 +270,11 @@ category_signals AS (
     TRUE AS supports_growth,
     FALSE AS supports_rewrite,
     FALSE AS supports_cannibal
-  FROM anchor AS a
-  LEFT JOIN category_aggregated AS c
-    ON c.period_name = "current_7d"
-  FULL OUTER JOIN category_aggregated AS p
-    ON p.period_name = "previous_7d"
-   AND c.entity_key = p.entity_key
+  FROM category_current AS c
+  FULL OUTER JOIN category_previous AS p
+    ON c.entity_key = p.entity_key
+   AND c.supporting_key = p.supporting_key
+  CROSS JOIN anchor AS a
 )
 SELECT *
 FROM page_signals
