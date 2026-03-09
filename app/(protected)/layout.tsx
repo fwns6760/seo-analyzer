@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
 import { createClient } from "@/utils/supabase/server";
@@ -28,13 +29,16 @@ export default async function ProtectedLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-pathname") ?? "/";
+  const search = requestHeaders.get("x-search") ?? "";
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/");
+    redirect(`/login?next=${encodeURIComponent(`${pathname}${search}`)}`);
   }
 
   const profileResult = await supabase

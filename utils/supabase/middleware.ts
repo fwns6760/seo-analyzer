@@ -2,9 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "@/utils/supabase/env";
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, requestHeaders?: Headers) {
   let response = NextResponse.next({
-    request,
+    request: requestHeaders
+      ? {
+          headers: requestHeaders,
+        }
+      : request,
   });
 
   const { url, publishableKey } = getSupabaseEnv();
