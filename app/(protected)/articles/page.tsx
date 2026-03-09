@@ -43,6 +43,24 @@ function formatMetricDelta(
   return `${sign}${new Intl.NumberFormat("ja-JP").format(Math.round(delta))}`;
 }
 
+function getDeltaTone(
+  currentValue: number,
+  previousValue: number,
+  improveDirection: "up" | "down" = "up",
+) {
+  const delta = currentValue - previousValue;
+
+  if (delta === 0) {
+    return "is-neutral";
+  }
+
+  if (improveDirection === "down") {
+    return delta < 0 ? "is-good" : "is-bad";
+  }
+
+  return delta > 0 ? "is-good" : "is-bad";
+}
+
 function formatDisplayDate(value: string) {
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
@@ -76,6 +94,14 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
 
   const selectedPage = articleResult.data?.selectedPage ?? null;
   const comparisonReady = selectedPage ? selectedPage.previous_impressions > 0 : false;
+  const topQuery = articleResult.data?.queries[0] ?? null;
+  const matchedDays =
+    articleResult.data?.trend.filter((point) => point.has_gsc_row && point.has_ga4_row).length ?? 0;
+  const jumpLinks = [
+    { href: "#page-kpi", label: "KPI" },
+    { href: "#page-timeline", label: "推移" },
+    { href: "#page-queries", label: "流入クエリ" },
+  ];
 
   return (
     <div className="report-page">
@@ -104,6 +130,36 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
             </div>
           </div>
         ) : null}
+
+        {selectedPage ? (
+          <div className="report-highlight-strip">
+            <article className="report-highlight-card">
+              <span className="label">Focus page</span>
+              <strong>{getPageLabel(selectedPage.page_path)}</strong>
+              <p>今週の流入変化と、どのクエリが押しているかをこの画面で追います。</p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Primary query</span>
+              <strong>{topQuery?.query ?? "まだ抽出なし"}</strong>
+              <p>{topQuery ? `クリック ${formatMetricValue(topQuery.clicks, "number")}` : "page_query_daily の蓄積待ちです。"}</p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Coverage</span>
+              <strong>
+                {matchedDays}/{articleResult.data?.trend.length ?? 0} days matched
+              </strong>
+              <p>GSC と GA4 が両方そろった日数を先に見せています。</p>
+            </article>
+          </div>
+        ) : null}
+
+        <nav className="report-jump-links" aria-label="Article sections">
+          {jumpLinks.map((link) => (
+            <a className="report-jump-link" href={link.href} key={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
       </section>
 
       {articleResult.error ? (
@@ -142,7 +198,7 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
             </div>
 
             <div className="article-rail-list">
-              {articleResult.data?.leaderboard.map((page) => {
+              {articleResult.data?.leaderboard.map((page, index) => {
                 const isActive = page.page_path === selectedPage.page_path;
 
                 return (
@@ -156,14 +212,22 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     }}
                     key={page.page_path}
                   >
-                    <div className="article-rail-copy">
-                      <strong>{getPageLabel(page.page_path)}</strong>
-                      <p>
-                        クリック {formatMetricValue(page.current_clicks, "number")} / Sessions{" "}
-                        {formatMetricValue(page.current_sessions, "number")}
-                      </p>
+                    <div className="article-rail-leading">
+                      <span className="article-rail-rank">#{index + 1}</span>
+                      <div className="article-rail-copy">
+                        <strong>{getPageLabel(page.page_path)}</strong>
+                        <p>
+                          クリック {formatMetricValue(page.current_clicks, "number")} / Sessions{" "}
+                          {formatMetricValue(page.current_sessions, "number")}
+                        </p>
+                      </div>
                     </div>
-                    <span className="article-rail-delta">
+                    <span
+                      className={`article-rail-delta ${getDeltaTone(
+                        page.current_clicks,
+                        page.previous_clicks,
+                      )}`}
+                    >
                       {formatMetricDelta(page.current_clicks, page.previous_clicks, "number")}
                     </span>
                   </Link>
@@ -191,7 +255,7 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
               </article>
             </section>
 
-            <section className="report-section">
+            <section className="report-section" id="page-kpi">
               <div className="report-section-header">
                 <div>
                   <p className="eyebrow">Scorecards</p>
@@ -209,7 +273,13 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedPage.current_clicks, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(selectedPage.current_clicks, selectedPage.previous_clicks)
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(selectedPage.current_clicks, selectedPage.previous_clicks, "number")
                       : "前週比較は蓄積中"}
@@ -225,7 +295,16 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedPage.current_impressions, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-neutral" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(
+                            selectedPage.current_impressions,
+                            selectedPage.previous_impressions,
+                          )
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedPage.current_impressions,
@@ -245,7 +324,17 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedPage.current_position ?? 0, "position")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-neutral" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(
+                            selectedPage.current_position ?? 0,
+                            selectedPage.previous_position ?? 0,
+                            "down",
+                          )
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedPage.current_position ?? 0,
@@ -265,7 +354,13 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="scorecard-source">Analytics 4</span>
                   </div>
                   <strong>{formatMetricValue(selectedPage.current_sessions, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(selectedPage.current_sessions, selectedPage.previous_sessions)
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedPage.current_sessions,
@@ -285,7 +380,16 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                     <span className="scorecard-source">Analytics 4</span>
                   </div>
                   <strong>{formatMetricValue(selectedPage.current_total_users, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(
+                            selectedPage.current_total_users,
+                            selectedPage.previous_total_users,
+                          )
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedPage.current_total_users,
@@ -302,7 +406,7 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
             </section>
 
             <section className="report-grid article-detail-grid">
-              <section className="report-section report-column">
+              <section className="report-section report-column" id="page-timeline">
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Daily timeline</p>
@@ -345,7 +449,10 @@ export default async function ArticleAnalysisPage({ searchParams }: ArticlePageP
                 </div>
               </section>
 
-              <section className="report-section report-column report-column-narrow">
+              <section
+                className="report-section report-column report-column-narrow"
+                id="page-queries"
+              >
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Top queries</p>

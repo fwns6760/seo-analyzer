@@ -199,6 +199,12 @@ export default async function HomePage() {
         },
       ]
     : [];
+  const opportunityBacklog = opportunityGroups.reduce((total, group) => total + group.items.length, 0);
+  const jumpLinks = [
+    { href: "#kpi", label: "KPI" },
+    { href: "#opportunities", label: "改善候補" },
+    { href: "#leaders", label: "上位ページ" },
+  ];
 
   return (
     <div className="report-page">
@@ -229,6 +235,34 @@ export default async function HomePage() {
             </div>
           </div>
         ) : null}
+
+        {overview ? (
+          <div className="report-highlight-strip">
+            <article className="report-highlight-card">
+              <span className="label">Next action</span>
+              <strong>{opportunityBacklog} 件の優先候補</strong>
+              <p>今すぐ深掘りするページ候補をダッシュボードで整理しています。</p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Coverage</span>
+              <strong>{overview.active_days}/14 日の比較母数</strong>
+              <p>{comparisonReady ? "前週比較 ready" : "週次比較はまだ蓄積中です。"}</p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Decision lens</span>
+              <strong>{overview.current_matched_pages} pages matched</strong>
+              <p>GSC と GA4 の両方が見えているページから優先的に判断できます。</p>
+            </article>
+          </div>
+        ) : null}
+
+        <nav className="report-jump-links" aria-label="Dashboard sections">
+          {jumpLinks.map((link) => (
+            <a className="report-jump-link" href={link.href} key={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
       </section>
 
       {dashboardResult.error ? (
@@ -273,7 +307,7 @@ export default async function HomePage() {
             </article>
           </section>
 
-          <section className="report-section">
+          <section className="report-section" id="kpi">
             <div className="report-section-header">
               <div>
                 <p className="eyebrow">Scorecards</p>
@@ -309,7 +343,7 @@ export default async function HomePage() {
 
           <section className="report-grid">
             <div className="report-column">
-              <section className="report-section">
+              <section className="report-section" id="opportunities">
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Opportunities</p>
@@ -352,7 +386,7 @@ export default async function HomePage() {
             </div>
 
             <div className="report-column report-column-narrow">
-              <section className="report-section">
+              <section className="report-section" id="leaders">
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Leaderboard</p>
@@ -368,6 +402,7 @@ export default async function HomePage() {
                     <table className="dashboard-table">
                       <thead>
                         <tr>
+                          <th>Rank</th>
                           <th>ページ</th>
                           <th>クリック</th>
                           <th>表示</th>
@@ -376,8 +411,11 @@ export default async function HomePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {dashboardResult.data?.topPages.map((page) => (
+                        {dashboardResult.data?.topPages.map((page, index) => (
                           <tr key={page.page_path}>
+                            <td>
+                              <span className="table-rank-badge">#{index + 1}</span>
+                            </td>
                             <td>
                               <Link
                                 href={{

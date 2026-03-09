@@ -6,7 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 const primaryNavItems = [
   {
     label: "ダッシュボード",
-    detail: "KPI overview",
+    detail: "Overview / KPI",
     href: "/",
   },
   {
@@ -16,7 +16,7 @@ const primaryNavItems = [
   },
   {
     label: "クエリ分析",
-    detail: "Search intent",
+    detail: "Query deep dive",
     href: "/queries",
   },
   {
@@ -24,6 +24,39 @@ const primaryNavItems = [
     detail: "Opportunity feed",
   },
 ];
+
+function getViewMeta(pathname: string) {
+  if (pathname.startsWith("/articles")) {
+    return {
+      eyebrow: "Page deep dive",
+      title: "記事ごとの流入と変化を読む",
+      description: "ページ単位で KPI、日次推移、流入クエリをひと続きに見て、次の打ち手を決めます。",
+      focus: "ページ別の勝ち筋と失速を把握する",
+      status: "Page analysis",
+      hint: "見る順番: scorecard -> 日次推移 -> 流入クエリ",
+    };
+  }
+
+  if (pathname.startsWith("/queries")) {
+    return {
+      eyebrow: "Query deep dive",
+      title: "クエリの意図と分散を追う",
+      description: "検索語ごとの獲得状況と紐づくページを並べて、意図とカニバリの兆候を見ます。",
+      focus: "検索語の分散と上位ページを把握する",
+      status: "Query analysis",
+      hint: "見る順番: scorecard -> page count -> 紐づくページ",
+    };
+  }
+
+  return {
+    eyebrow: "Weekly overview",
+    title: "週次の変化から次の分析先を決める",
+    description: "KPI と改善候補を同じ視線に置いて、どのページやクエリを掘るべきかをすぐ判断できる状態にします。",
+    focus: "優先順位の高い改善候補を素早く見つける",
+    status: "Overview",
+    hint: "見る順番: KPI -> 改善候補 -> 上位ページ",
+  };
+}
 
 export default async function ProtectedLayout({
   children,
@@ -49,6 +82,7 @@ export default async function ProtectedLayout({
     .maybeSingle();
 
   const displayName = profileResult.data?.full_name ?? user.email ?? "Unknown user";
+  const currentView = getViewMeta(pathname);
 
   return (
     <div className="studio-shell">
@@ -107,18 +141,38 @@ export default async function ProtectedLayout({
 
       <div className="studio-main">
         <header className="studio-topbar">
-          <div>
-            <p className="studio-topbar-eyebrow">Modern report workspace</p>
-            <h1>Looker Studio 風の分析レイアウト</h1>
+          <div className="studio-topbar-copyblock">
+            <p className="studio-topbar-eyebrow">{currentView.eyebrow}</p>
+            <h1>{currentView.title}</h1>
+            <p className="studio-topbar-copy">{currentView.description}</p>
           </div>
 
           <div className="studio-topbar-actions">
+            <div className="studio-status-pill">{currentView.status}</div>
+            <div className="studio-status-pill is-muted">Daily batch sync</div>
             <div className="studio-search-pill" aria-hidden="true">
-              Search data source, page, query
+              {currentView.hint}
             </div>
-            <div className="studio-status-pill">Private workspace</div>
           </div>
         </header>
+
+        <section className="studio-context-strip" aria-label="Workspace context">
+          <article className="studio-context-card">
+            <span className="label">Focus</span>
+            <strong>{currentView.focus}</strong>
+            <p>今日の判断を早くするための主目的です。</p>
+          </article>
+          <article className="studio-context-card">
+            <span className="label">Data source</span>
+            <strong>BigQuery mart + raw</strong>
+            <p>Search Console と Analytics 4 を日次 batch で集約しています。</p>
+          </article>
+          <article className="studio-context-card">
+            <span className="label">Workspace mode</span>
+            <strong>Owner-only analysis</strong>
+            <p>自分専用の分析画面として、速度と判断性を優先しています。</p>
+          </article>
+        </section>
 
         <div className="studio-canvas">{children}</div>
       </div>

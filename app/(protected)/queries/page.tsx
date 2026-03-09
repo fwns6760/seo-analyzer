@@ -43,6 +43,24 @@ function formatMetricDelta(
   return `${sign}${new Intl.NumberFormat("ja-JP").format(Math.round(delta))}`;
 }
 
+function getDeltaTone(
+  currentValue: number,
+  previousValue: number,
+  improveDirection: "up" | "down" = "up",
+) {
+  const delta = currentValue - previousValue;
+
+  if (delta === 0) {
+    return "is-neutral";
+  }
+
+  if (improveDirection === "down") {
+    return delta < 0 ? "is-good" : "is-bad";
+  }
+
+  return delta > 0 ? "is-good" : "is-bad";
+}
+
 function formatDisplayDate(value: string) {
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
@@ -67,6 +85,14 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
 
   const selectedQuery = queryResult.data?.selectedQuery ?? null;
   const comparisonReady = selectedQuery ? selectedQuery.previous_impressions > 0 : false;
+  const topPage = queryResult.data?.pages[0] ?? null;
+  const multiPageDays =
+    queryResult.data?.trend.filter((point) => point.has_multiple_pages).length ?? 0;
+  const jumpLinks = [
+    { href: "#query-kpi", label: "KPI" },
+    { href: "#query-timeline", label: "推移" },
+    { href: "#query-pages", label: "紐づくページ" },
+  ];
 
   return (
     <div className="report-page">
@@ -95,6 +121,40 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
             </div>
           </div>
         ) : null}
+
+        {selectedQuery ? (
+          <div className="report-highlight-strip">
+            <article className="report-highlight-card">
+              <span className="label">Intent focus</span>
+              <strong>{selectedQuery.query}</strong>
+              <p>この検索語をどのページが取っているかを先に整理します。</p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Primary page</span>
+              <strong>{topPage?.page_path ?? "まだ抽出なし"}</strong>
+              <p>
+                {topPage
+                  ? `クリック ${formatMetricValue(topPage.clicks, "number")} / active ${topPage.active_days}日`
+                  : "page_query_daily の蓄積待ちです。"}
+              </p>
+            </article>
+            <article className="report-highlight-card">
+              <span className="label">Spread signal</span>
+              <strong>
+                {selectedQuery.max_page_count >= 2 ? "複数ページに分散" : "単一ページ中心"}
+              </strong>
+              <p>{multiPageDays} 日で複数ページ出現。カニバリ予兆の確認に使えます。</p>
+            </article>
+          </div>
+        ) : null}
+
+        <nav className="report-jump-links" aria-label="Query sections">
+          {jumpLinks.map((link) => (
+            <a className="report-jump-link" href={link.href} key={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
       </section>
 
       {queryResult.error ? (
@@ -133,7 +193,7 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
             </div>
 
             <div className="article-rail-list">
-              {queryResult.data?.leaderboard.map((queryItem) => {
+              {queryResult.data?.leaderboard.map((queryItem, index) => {
                 const isActive = queryItem.query === selectedQuery.query;
 
                 return (
@@ -147,14 +207,22 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     }}
                     key={queryItem.query}
                   >
-                    <div className="article-rail-copy">
-                      <strong>{queryItem.query}</strong>
-                      <p>
-                        クリック {formatMetricValue(queryItem.current_clicks, "number")} / 表示{" "}
-                        {formatMetricValue(queryItem.current_impressions, "number")}
-                      </p>
+                    <div className="article-rail-leading">
+                      <span className="article-rail-rank">#{index + 1}</span>
+                      <div className="article-rail-copy">
+                        <strong>{queryItem.query}</strong>
+                        <p>
+                          クリック {formatMetricValue(queryItem.current_clicks, "number")} / 表示{" "}
+                          {formatMetricValue(queryItem.current_impressions, "number")}
+                        </p>
+                      </div>
                     </div>
-                    <span className="article-rail-delta">
+                    <span
+                      className={`article-rail-delta ${getDeltaTone(
+                        queryItem.current_clicks,
+                        queryItem.previous_clicks,
+                      )}`}
+                    >
                       {formatMetricDelta(queryItem.current_clicks, queryItem.previous_clicks, "number")}
                     </span>
                   </Link>
@@ -192,7 +260,7 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
               </article>
             </section>
 
-            <section className="report-section">
+            <section className="report-section" id="query-kpi">
               <div className="report-section-header">
                 <div>
                   <p className="eyebrow">Scorecards</p>
@@ -210,7 +278,13 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedQuery.current_clicks, "number")}</strong>
-                  <p className={`scorecard-delta ${comparisonReady ? "is-good" : "is-neutral"}`}>
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(selectedQuery.current_clicks, selectedQuery.previous_clicks)
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedQuery.current_clicks,
@@ -230,7 +304,16 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedQuery.current_impressions, "number")}</strong>
-                  <p className="scorecard-delta is-neutral">
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(
+                            selectedQuery.current_impressions,
+                            selectedQuery.previous_impressions,
+                          )
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedQuery.current_impressions,
@@ -250,7 +333,13 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedQuery.current_ctr ?? 0, "percent")}</strong>
-                  <p className="scorecard-delta is-neutral">
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(selectedQuery.current_ctr ?? 0, selectedQuery.previous_ctr ?? 0)
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedQuery.current_ctr ?? 0,
@@ -270,7 +359,17 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedQuery.current_position ?? 0, "position")}</strong>
-                  <p className="scorecard-delta is-neutral">
+                  <p
+                    className={`scorecard-delta ${
+                      comparisonReady
+                        ? getDeltaTone(
+                            selectedQuery.current_position ?? 0,
+                            selectedQuery.previous_position ?? 0,
+                            "down",
+                          )
+                        : "is-neutral"
+                    }`}
+                  >
                     {comparisonReady
                       ? formatMetricDelta(
                           selectedQuery.current_position ?? 0,
@@ -290,7 +389,11 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                     <span className="scorecard-source">Search Console</span>
                   </div>
                   <strong>{formatMetricValue(selectedQuery.max_page_count, "number")}</strong>
-                  <p className="scorecard-delta is-neutral">
+                  <p
+                    className={`scorecard-delta ${
+                      selectedQuery.max_page_count >= 2 ? "is-warn" : "is-good"
+                    }`}
+                  >
                     {selectedQuery.max_page_count >= 2
                       ? "複数ページに分散"
                       : "単一ページ中心"}
@@ -301,7 +404,7 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
             </section>
 
             <section className="report-grid article-detail-grid">
-              <section className="report-section report-column">
+              <section className="report-section report-column" id="query-timeline">
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Daily timeline</p>
@@ -344,7 +447,10 @@ export default async function QueryAnalysisPage({ searchParams }: QueryPageProps
                 </div>
               </section>
 
-              <section className="report-section report-column report-column-narrow">
+              <section
+                className="report-section report-column report-column-narrow"
+                id="query-pages"
+              >
                 <div className="report-section-header">
                   <div>
                     <p className="eyebrow">Page distribution</p>
