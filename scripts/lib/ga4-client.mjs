@@ -1,4 +1,4 @@
-const targetDomain = "yoshilover.com";
+import { getSiteRuntimeConfig } from "./runtime-config.mjs";
 
 export async function analyticsRequest(baseUrl, path, { method = "GET", body, token }) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -47,6 +47,7 @@ function normalizePropertyName(input) {
 }
 
 export async function chooseProperty(accountSummaries, token) {
+  const { ga4TargetDomain } = getSiteRuntimeConfig();
   const explicit = normalizePropertyName(process.env.GA4_PROPERTY_ID);
   const propertySummaries = accountSummaries.flatMap((accountSummary) =>
     (accountSummary.propertySummaries || []).map((propertySummary) => ({
@@ -89,7 +90,7 @@ export async function chooseProperty(accountSummaries, token) {
         measurementId: dataStream.webStreamData?.measurementId || null,
       });
 
-      if (defaultUri.includes(targetDomain)) {
+      if (defaultUri.includes(ga4TargetDomain)) {
         return { chosenProperty: propertySummary, inspectedStreams };
       }
     }

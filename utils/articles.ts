@@ -1,6 +1,7 @@
 import "server-only";
 
 import { runBigQueryQuery } from "@/utils/bigquery";
+import { bigQueryConfig } from "@/utils/runtime-config";
 
 export type ArticleLeaderboardItem = {
   reference_end_date: string;
@@ -58,14 +59,9 @@ export type ArticleAnalysisData = {
   requestedSelectionMissing: boolean;
 };
 
-const projectId =
-  process.env.GOOGLE_CLOUD_PROJECT ??
-  process.env.GCP_PROJECT_ID ??
-  process.env.BIGQUERY_PROJECT_ID ??
-  "baseballsite";
-
-const martDataset = process.env.BIGQUERY_MART_DATASET ?? "seo_mart";
-const rawDataset = process.env.BIGQUERY_RAW_DATASET ?? "seo_raw";
+const projectId = bigQueryConfig.projectId;
+const martDataset = bigQueryConfig.martDatasetId;
+const rawDataset = bigQueryConfig.rawDatasetId;
 
 function martTable(tableName: string) {
   return `\`${projectId}.${martDataset}.${tableName}\``;

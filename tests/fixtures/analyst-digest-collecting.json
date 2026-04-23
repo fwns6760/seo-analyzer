@@ -1,0 +1,30 @@
+{
+  "overview": {
+    "reference_end_date": "2026-04-22",
+    "earliest_date": "2026-04-18",
+    "latest_date": "2026-04-22",
+    "active_days": 5,
+    "current_clicks": 24,
+    "previous_clicks": 0,
+    "current_impressions": 380,
+    "previous_impressions": 0,
+    "current_ctr": 0.0632,
+    "previous_ctr": null,
+    "current_position": 14.8,
+    "previous_position": null,
+    "current_sessions": 61,
+    "previous_sessions": 0,
+    "current_total_users": 52,
+    "previous_total_users": 0,
+    "current_key_events": 2,
+    "previous_key_events": 0,
+    "current_matched_pages": 5,
+    "previous_matched_pages": 0,
+    "candidate_page_previous_rows": 0
+  },
+  "winners": [],
+  "losers": [],
+  "queryMoves": [],
+  "rewriteOpportunities": [],
+  "cannibalOpportunities": []
+}

@@ -13,6 +13,7 @@ import {
   rewriteOrderByClause,
   rewriteWhereClause,
 } from "@/utils/opportunity-rewrite";
+import { bigQueryConfig } from "@/utils/runtime-config";
 
 export type DashboardOverview = {
   reference_end_date: string;
@@ -74,13 +75,8 @@ export type DashboardData = {
   topPages: DashboardTopPage[];
 };
 
-const projectId =
-  process.env.GOOGLE_CLOUD_PROJECT ??
-  process.env.GCP_PROJECT_ID ??
-  process.env.BIGQUERY_PROJECT_ID ??
-  "baseballsite";
-
-const martDataset = process.env.BIGQUERY_MART_DATASET ?? "seo_mart";
+const projectId = bigQueryConfig.projectId;
+const martDataset = bigQueryConfig.martDatasetId;
 
 function martTable(tableName: string) {
   return `\`${projectId}.${martDataset}.${tableName}\``;

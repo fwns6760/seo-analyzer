@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/deploy-job.yml"
       - "Dockerfile.job"
+      - "config/**"
       - "package.json"
       - "package-lock.json"
       - "scripts/**"
@@ -22,12 +23,23 @@ env:
   REPOSITORY: seo-analyzer
   IMAGE_NAME: seo-batch-job
   JOB_NAME: seo-fetch-job
+  APP_SITE_DOMAIN: yoshilover.com
+  APP_SITE_ORIGIN: https://yoshilover.com
+  GSC_SITE_URL: https://yoshilover.com/
+  GA4_TARGET_DOMAIN: yoshilover.com
+  BIGQUERY_RAW_DATASET: seo_raw
+  BIGQUERY_MART_DATASET: seo_mart
+  BIGQUERY_LOCATION: asia-northeast1
   RUNTIME_SERVICE_ACCOUNT: seo-batch-runtime@baseballsite.iam.gserviceaccount.com
   DEPLOYER_SERVICE_ACCOUNT: seo-batch-deployer@baseballsite.iam.gserviceaccount.com
   WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-batch
 
 jobs:
+  quality-check:
+    uses: ./.github/workflows/quality-check.yml
+
   deploy:
+    needs: quality-check
     runs-on: ubuntu-latest
 
     steps:
@@ -71,7 +83,7 @@ jobs:
             --region="${REGION}" \
             --image="${IMAGE_URI}" \
             --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
-            --set-env-vars="BATCH_TARGET=all,DRY_RUN=false,DEFAULT_DELAY_DAYS=3,DEFAULT_WINDOW_DAYS=1,BIGQUERY_PROJECT_ID=${PROJECT_ID},BIGQUERY_RAW_DATASET=seo_raw" \
+            --set-env-vars="BATCH_TARGET=all,DRY_RUN=false,DEFAULT_DELAY_DAYS=3,DEFAULT_WINDOW_DAYS=1,BIGQUERY_PROJECT_ID=${PROJECT_ID},BIGQUERY_RAW_DATASET=${BIGQUERY_RAW_DATASET},BIGQUERY_MART_DATASET=${BIGQUERY_MART_DATASET},BIGQUERY_LOCATION=${BIGQUERY_LOCATION},APP_SITE_DOMAIN=${APP_SITE_DOMAIN},APP_SITE_ORIGIN=${APP_SITE_ORIGIN},GSC_SITE_URL=${GSC_SITE_URL},GA4_TARGET_DOMAIN=${GA4_TARGET_DOMAIN}" \
             --set-secrets="GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,GOOGLE_OAUTH_REFRESH_TOKEN=google-oauth-refresh-token:latest" \
             --max-retries=0 \
             --tasks=1 \

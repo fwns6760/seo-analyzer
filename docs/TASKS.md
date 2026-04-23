@@ -1,9 +1,10 @@
 # TASKS.md
 
 ## Project status
-- Phase: MVP
+- Phase: Hardening
 - Overall progress: 100%
-- Current focus: 実データ蓄積待ち。次: 2026-03-16 前後に前週比較の反映と閾値を再確認
+- MVP progress: 100%
+- Current focus: Hardening 実装完了。次: `Data Readiness Monitor` を GitHub Actions 上で実行し、前週比較 ready と IAM 権限を確認。並行で 2026-03-16 前後に `data:readiness` を再確認
 - Updated at: 2026-03-09
 
 ## Status rules
@@ -181,7 +182,32 @@ Goal: GitHub への push を起点に GCP へ安全に自動デプロイでき�
 
 ---
 
+## Epic 7. Hardening
+Status: Done
+Goal: 自分専用運用の保証、設定の再利用性、デプロイ前品質ゲートを整える
+
+### Tasks
+- [x] E7-T1 owner only 制御の実装（許可メール固定 + `profiles.role`）
+- [x] E7-T2 Supabase 側の owner 制限整理（OAuth / profile / 必要な SQL or policy）
+- [x] E7-T3 サイト固有設定と opportunity 閾値の config/env 化
+- [x] E7-T4 quality check 追加（`lint` / `typecheck` / `build`）
+- [x] E7-T5 最小 test / smoke test の追加
+- [x] E7-T6 deploy 前 check 必須化と `data:readiness` の定期監視整理
+
+### Notes
+- Blocker:
+- Owner: me
+- Plan: `docs/PLANS.md` の Hardening 計画を正本とする
+
+---
+
 ## Done log
+- 2026-03-09: E7-T6 を完了。reusable workflow `.github/workflows/quality-check.yml` を追加し、`pull_request` と manual run で `lint` / `typecheck` / `test` / `build` を実行できるようにした。`deploy-web.yml` と `deploy-job.yml` は `quality-check` job を前段に持つ構成へ更新し、deploy 前 gate を必須化。`data:readiness` は blocker にせず `.github/workflows/data-readiness-monitor.yml` を別追加して、毎日 `06:30 JST` 相当の schedule と manual run で `readiness-summary.json` を artifact / job summary に残す運用へ整理した。ローカルでは `npm run lint`、`npm run typecheck`、`npm test`、`npm run check` 成功を確認。GitHub Actions 上の `Data Readiness Monitor` は未実行のため、既存 `seo-web-deployer` に BigQuery 読み取り権限が足りない場合は別途 `roles/bigquery.jobUser` / `roles/bigquery.dataViewer` 付与か専用 SA への切替確認が必要
+- 2026-03-09: E7-T5 を完了。依存を増やしすぎないため `node:test` ベースで `test:unit`、`test:smoke`、`test` script を追加し、`tests/unit-comparison-window.test.mjs`、`tests/unit-request-url.test.mjs`、`tests/smoke-runtime-config.test.mjs` を作成した。比較 window、公開 URL 解決、runtime config と GSC site 選択の既定値/override を検証し、`eslint.config.mjs` では test file に Node globals を付与。`tsconfig.json` は `.next/dev/**/*` を exclude して typecheck と build の正本を分離し、`npm test`、`npm run test:smoke`、`npm run lint`、`npm run typecheck`、`npm run check` 成功まで確認
+- 2026-03-09: E7-T4 を完了。`eslint` / `eslint-config-next` を追加し、`eslint.config.mjs` を作成して `npm run lint` を有効化。`package.json` には `lint`、`typecheck`、`check` script を追加し、`README.md` のローカル実行コマンドも更新した。`typecheck` が `.next/dev/types` の stale file を拾って落ちていたため、`tsconfig.json` は `.next/types/**/*.ts` のみを include する形へ整理。`npm run lint`、`npm run typecheck`、`npm run check` 成功まで確認
+- 2026-03-09: E7-T3 を完了。`config/runtime-defaults.json` と `utils/runtime-config.ts` / `scripts/lib/runtime-config.mjs` を追加し、site 名、owner email、`BigQuery project/raw/mart/location`、opportunity threshold を app / scripts / workflow から共通参照する形へ整理した。`app/layout.tsx`、`app/(protected)/layout.tsx`、`utils/bigquery.ts`、`utils/articles.ts`、`utils/queries.ts`、`utils/dashboard.ts`、`utils/opportunities.ts`、`scripts/lib/gsc-client.mjs`、`scripts/lib/ga4-client.mjs`、`scripts/seo-batch-job.mjs`、`scripts/data-readiness-check.mjs` を更新し、`.env.example` と `README.md` に env 一覧を追記。`Cloud Run` / `Cloud Run Jobs` workflow も `config/**` 変更で再デプロイされるよう path filter と runtime env を追加し、`npx next typegen`、`node --check scripts/seo-batch-job.mjs`、`node --check scripts/data-readiness-check.mjs`、`npm run build` 成功を確認
+- 2026-03-09: E7-T2 を完了。Supabase には migration `add_owner_signup_hook` を適用し、`public.hook_restrict_owner_signup(event jsonb)` で owner メール以外の signup を `403` で拒否する SQL hook を追加した。`app/auth/login/route.ts` では Google OAuth 開始時に `login_hint=fwns6760@gmail.com` と `prompt=select_account` を渡すようにし、`docs/supabase_owner_only_setup.md` に `Before user created` hook を `public.hook_restrict_owner_signup` へ紐付ける dashboard 手順を記載。SQL 単体で owner / non-owner の戻り値を確認し、`npm run build` 成功まで確認
+- 2026-03-09: E7-T1 を完了。固定 owner メール `fwns6760@gmail.com` と `profiles.role = owner` の二段チェックを `app/(protected)/layout.tsx`、`app/login/page.tsx`、`app/auth/callback/route.ts` に追加し、unauthorized session を `/auth/unauthorized` で強制 sign out するようにした。Supabase には migration `add_profiles_role_owner_guard` を適用して `public.profiles.role`、owner backfill、`handle_new_user` の owner 付与、`prevent_profile_role_change` trigger、`Users can insert own profile` の viewer 固定を追加。`npx next typegen`、`npm run build`、Supabase security advisor を確認し、残 advisory は `Leaked Password Protection Disabled` の 1 件のみ
 - 2026-03-06: G0-T0 GCP学習優先の実装順を整理し、Step A-H の完了条件を追加
 - 2026-03-08: G0-T1 を完了。`baseballsite` を対象に `gcloud` 認証、プロジェクト選択、主要 API と `cloudbuild.googleapis.com` の有効化を確認
 - 2026-03-08: G0-T2 を完了。`seo-web-runtime` と `seo-batch-runtime` の Service Account を作成し、`fwns6760@gmail.com` に `roles/iam.serviceAccountUser` を付与。デフォルトの Compute Engine Service Account は `roles/editor` 付きのため今後は使わない方針を明記
@@ -243,4 +269,5 @@ flowchart LR
     C --> D[認証基盤]
     D --> E[MVP画面実装]
     E --> F[改善候補ロジック]
+    F --> G[Hardening]
 ```

@@ -1,0 +1,60 @@
+{
+  "site": {
+    "appName": "SEO Analyzer",
+    "displayName": "Yoshilover.com",
+    "domain": "yoshilover.com",
+    "canonicalOrigin": "https://yoshilover.com",
+    "gscSiteCandidates": [
+      "sc-domain:yoshilover.com",
+      "https://yoshilover.com/",
+      "http://yoshilover.com/"
+    ]
+  },
+  "owner": {
+    "emails": [
+      "fwns6760@gmail.com"
+    ]
+  },
+  "bigquery": {
+    "projectId": "baseballsite",
+    "rawDataset": "seo_raw",
+    "martDataset": "seo_mart",
+    "location": "asia-northeast1"
+  },
+  "opportunities": {
+    "rankDrop": {
+      "previousImpressionsMin": 50,
+      "previousPositionMax": 20,
+      "positionDeltaMin": 1,
+      "previousClicksMin": 5,
+      "clicksDeltaMin": 3,
+      "clicksLossRateMin": 0.2,
+      "previousSessionsMin": 5,
+      "sessionsDeltaMin": 3,
+      "sessionsLossRateMin": 0.2
+    },
+    "growth": {
+      "currentImpressionsMin": 50,
+      "currentPositionMax": 20,
+      "previousClicksMin": 5,
+      "clicksDeltaMin": 3,
+      "clicksGainRateMin": 0.2,
+      "previousSessionsMin": 5,
+      "sessionsDeltaMin": 3,
+      "sessionsGainRateMin": 0.2,
+      "positionDeltaMax": -0.5,
+      "impressionsDeltaMin": 30
+    },
+    "rewrite": {
+      "currentImpressionsMin": 80,
+      "currentPositionMin": 6,
+      "currentPositionMax": 20,
+      "currentCtrMax": 0.12
+    },
+    "cannibal": {
+      "currentSupportCountMin": 2,
+      "currentImpressionsMin": 80,
+      "currentPositionMax": 20
+    }
+  }
+}

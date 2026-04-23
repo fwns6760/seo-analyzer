@@ -1,9 +1,6 @@
-const rewriteThresholds = {
-  currentImpressionsMin: 80,
-  currentPositionMin: 6,
-  currentPositionMax: 20,
-  currentCtrMax: 0.12,
-} as const;
+import { opportunityThresholds } from "@/utils/runtime-config";
+
+const rewriteThresholds = opportunityThresholds.rewrite;
 
 function formatPercent(rate: number) {
   return `${Math.round(rate * 100)}%`;

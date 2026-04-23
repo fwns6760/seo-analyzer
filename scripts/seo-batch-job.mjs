@@ -3,6 +3,7 @@ import { resolveBatchDateRange } from "./lib/date-range.mjs";
 import { insertAllRows } from "./lib/bigquery-client.mjs";
 import { listGscSites, pickSite, queryAllGscRows } from "./lib/gsc-client.mjs";
 import { chooseProperty, listAccountSummaries, runAllGa4Rows } from "./lib/ga4-client.mjs";
+import { getBigQueryRuntimeConfig } from "./lib/runtime-config.mjs";
 
 const gscGrains = [
   { grain: "site_daily", dimensions: ["date"] },
@@ -45,13 +46,9 @@ function parseArgs(argv) {
 
 function resolveConfig() {
   const args = parseArgs(process.argv.slice(2));
+  const bigQueryConfig = getBigQueryRuntimeConfig();
   const target = args.target || process.env.BATCH_TARGET || "all";
   const dryRun = args.dryRun || process.env.DRY_RUN === "true";
-  const projectId =
-    process.env.BIGQUERY_PROJECT_ID ||
-    process.env.GOOGLE_CLOUD_PROJECT ||
-    "baseballsite";
-  const rawDatasetId = process.env.BIGQUERY_RAW_DATASET || "seo_raw";
   const dateRange = resolveBatchDateRange({
     startDate: args.startDate,
     endDate: args.endDate,
@@ -64,8 +61,8 @@ function resolveConfig() {
   return {
     target,
     dryRun,
-    projectId,
-    rawDatasetId,
+    projectId: bigQueryConfig.projectId,
+    rawDatasetId: bigQueryConfig.rawDatasetId,
     ...dateRange,
   };
 }

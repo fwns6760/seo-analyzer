@@ -1,6 +1,7 @@
 import "server-only";
 
 import { runBigQueryQuery } from "@/utils/bigquery";
+import { appConfig, bigQueryConfig, buildCanonicalUrl } from "@/utils/runtime-config";
 
 export type QueryLeaderboardItem = {
   reference_end_date: string;
@@ -54,14 +55,10 @@ export type QueryAnalysisData = {
   requestedSelectionMissing: boolean;
 };
 
-const projectId =
-  process.env.GOOGLE_CLOUD_PROJECT ??
-  process.env.GCP_PROJECT_ID ??
-  process.env.BIGQUERY_PROJECT_ID ??
-  "baseballsite";
-
-const martDataset = process.env.BIGQUERY_MART_DATASET ?? "seo_mart";
-const rawDataset = process.env.BIGQUERY_RAW_DATASET ?? "seo_raw";
+const projectId = bigQueryConfig.projectId;
+const martDataset = bigQueryConfig.martDatasetId;
+const rawDataset = bigQueryConfig.rawDatasetId;
+const canonicalOrigin = appConfig.canonicalOrigin;
 
 function martTable(tableName: string) {
   return `\`${projectId}.${martDataset}.${tableName}\``;
@@ -240,8 +237,8 @@ SELECT
   a.reference_end_date,
   q.page_path,
   CASE
-    WHEN q.page_path = "/" THEN "https://yoshilover.com/"
-    ELSE CONCAT("https://yoshilover.com", q.page_path)
+    WHEN q.page_path = "/" THEN "${buildCanonicalUrl("/")}"
+    ELSE CONCAT("${canonicalOrigin}", q.page_path)
   END AS canonical_url,
   SUM(COALESCE(q.clicks, 0)) AS clicks,
   SUM(COALESCE(q.impressions, 0)) AS impressions,

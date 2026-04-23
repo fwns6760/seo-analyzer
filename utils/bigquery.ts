@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getGoogleAccessToken } from "@/utils/google-auth";
+import { bigQueryConfig } from "@/utils/runtime-config";
 
 type BigQueryField = {
   name: string;
@@ -38,16 +39,11 @@ type BigQueryQueryPayload = {
 const BIGQUERY_SCOPE = "https://www.googleapis.com/auth/bigquery";
 
 function getProjectId() {
-  return (
-    process.env.GOOGLE_CLOUD_PROJECT ??
-    process.env.GCP_PROJECT_ID ??
-    process.env.BIGQUERY_PROJECT_ID ??
-    "baseballsite"
-  );
+  return bigQueryConfig.projectId;
 }
 
 function getLocation() {
-  return process.env.BIGQUERY_LOCATION ?? "asia-northeast1";
+  return bigQueryConfig.location;
 }
 
 function decodeFieldValue(field: BigQueryField, raw: unknown): unknown {

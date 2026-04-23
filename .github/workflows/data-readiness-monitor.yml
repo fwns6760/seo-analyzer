@@ -1,0 +1,87 @@
+name: Data Readiness Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 21 * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: baseballsite
+  REGION: asia-northeast1
+  BIGQUERY_RAW_DATASET: seo_raw
+  BIGQUERY_MART_DATASET: seo_mart
+  BIGQUERY_LOCATION: asia-northeast1
+  AUTH_SERVICE_ACCOUNT: seo-web-deployer@baseballsite.iam.gserviceaccount.com
+  WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-web
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.AUTH_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Run readiness check
+        run: node scripts/data-readiness-check.mjs --json > readiness-summary.json
+
+      - name: Write job summary
+        run: |
+          node <<'EOF'
+          const fs = require("node:fs");
+          const summary = JSON.parse(fs.readFileSync("readiness-summary.json", "utf8"));
+
+          const lines = [
+            "# Data readiness",
+            "",
+            `- Project: \`${summary.projectId}\``,
+            `- Comparison status: \`${summary.comparison.status}\``,
+            `- Active days: \`${summary.comparison.activeDays}/${summary.comparison.targetDays}\``,
+            `- ETA: \`${summary.comparison.etaDate ?? "-"}\``,
+            `- Candidate previous-ready rows: \`${summary.mart.candidatePagePreviousRows}\``,
+            `- Reference end date: \`${summary.mart.candidateReferenceEndDate ?? "-"}\``,
+            "",
+            "```json",
+            JSON.stringify(summary, null, 2),
+            "```",
+          ];
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+
+          if (summary.comparison.status !== "ready") {
+            console.log(
+              `::notice title=Data readiness::status=${summary.comparison.status}, eta=${summary.comparison.etaDate ?? "-"}`,
+            );
+          }
+          EOF
+
+      - name: Upload readiness artifact
+        if: ${{ always() && hashFiles('readiness-summary.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-readiness-summary
+          path: readiness-summary.json

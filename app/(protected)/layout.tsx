@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
-import { createClient } from "@/utils/supabase/server";
+import { getOwnerAccessState, getUnauthorizedRedirectPath } from "@/utils/owner-access";
+import { appConfig } from "@/utils/runtime-config";
 
 const primaryNavItems = [
   {
@@ -79,22 +80,20 @@ export default async function ProtectedLayout({
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-pathname") ?? "/";
   const search = requestHeaders.get("x-search") ?? "";
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const next = `${pathname}${search}`;
+  const ownerAccess = await getOwnerAccessState();
 
-  if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`${pathname}${search}`)}`);
+  if (!ownerAccess.user) {
+    redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  const profileResult = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  if (!ownerAccess.isOwner && ownerAccess.failureReason) {
+    redirect(getUnauthorizedRedirectPath(ownerAccess.failureReason, next));
+  }
 
-  const displayName = profileResult.data?.full_name ?? user.email ?? "Unknown user";
+  const user = ownerAccess.user;
+  const profile = ownerAccess.profile;
+  const displayName = profile?.full_name ?? user.email ?? "Unknown user";
   const currentView = getViewMeta(pathname);
 
   return (
@@ -108,8 +107,8 @@ export default async function ProtectedLayout({
             <span />
           </div>
           <div>
-            <p className="studio-brand-eyebrow">Yoshilover.com</p>
-            <strong>SEO Analyzer Studio</strong>
+            <p className="studio-brand-eyebrow">{appConfig.siteDisplayName}</p>
+            <strong>{appConfig.appName} Studio</strong>
           </div>
         </div>
 
@@ -135,7 +134,7 @@ export default async function ProtectedLayout({
             <dl className="studio-user-meta">
               <div>
                 <dt>Mode</dt>
-                <dd>Owner only</dd>
+                <dd>{profile?.role === "owner" ? "Owner only" : "Restricted"}</dd>
               </div>
               <div>
                 <dt>Auth</dt>

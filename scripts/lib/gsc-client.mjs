@@ -1,8 +1,4 @@
-const defaultSiteCandidates = [
-  "sc-domain:yoshilover.com",
-  "https://yoshilover.com/",
-  "http://yoshilover.com/",
-];
+import { getSiteRuntimeConfig } from "./runtime-config.mjs";
 
 export async function gscRequest(path, { method = "GET", body, token }) {
   const response = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/${path}`, {
@@ -23,6 +19,7 @@ export async function gscRequest(path, { method = "GET", body, token }) {
 }
 
 export function pickSite(siteEntries) {
+  const siteConfig = getSiteRuntimeConfig();
   const explicit = process.env.GSC_SITE_URL;
   const siteUrls = siteEntries.map((entry) => entry.siteUrl);
 
@@ -35,13 +32,13 @@ export function pickSite(siteEntries) {
     return explicit;
   }
 
-  for (const candidate of defaultSiteCandidates) {
+  for (const candidate of siteConfig.gscSiteCandidates) {
     if (siteUrls.includes(candidate)) {
       return candidate;
     }
   }
 
-  return siteUrls.find((siteUrl) => siteUrl.includes("yoshilover.com")) || siteUrls[0];
+  return siteUrls.find((siteUrl) => siteUrl.includes(siteConfig.siteDomain)) || siteUrls[0];
 }
 
 export async function listGscSites(token) {

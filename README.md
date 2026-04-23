@@ -1,6 +1,6 @@
 # SEO Analyzer
 
-`yoshilover.com` 向けの SEO 分析 Web アプリです。  
+既定値は `yoshilover.com` 向けの SEO 分析 Web アプリです。  
 `Google Search Console` と `Google Analytics 4` のデータを `BigQuery` に蓄積し、検索流入の監視と改善候補の抽出を行います。
 
 ## このリポジトリでやったこと
@@ -76,13 +76,25 @@
 
 - `Node.js 20+`
 - `gcloud` 認証済み、または `BigQuery` / OAuth 用の必要な環境変数が設定済み
-- `.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を配置済み
+- `.env.local` は `.env.example` をベースに作成し、`NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を含めて必要値を配置済み
+
+設定:
+
+- 既定値は `config/runtime-defaults.json` にまとめています
+- site / owner / `BigQuery` / opportunity threshold は env で上書きできます
+- 代表的な env は `APP_SITE_DOMAIN`、`APP_SITE_ORIGIN`、`OWNER_EMAILS`、`BIGQUERY_PROJECT_ID`、`BIGQUERY_RAW_DATASET`、`BIGQUERY_MART_DATASET`
+- threshold は `OPPORTUNITY_*` 系 env で個別上書きできます
 
 よく使うコマンド:
 
 ```bash
 npm install
 npm run dev
+npm run lint
+npm run typecheck
+npm run check
+npm test
+npm run test:smoke
 npm run build
 npm run batch:job:dry-run
 npm run data:readiness
@@ -97,10 +109,12 @@ npm run data:readiness
 
 - Web: `https://seo-analyzer-web-n5hunzkyna-an.a.run.app`
 - Deploy: `main` push で `GitHub Actions` が `Cloud Run` / `Cloud Run Jobs` を更新
+- Quality gate: `deploy-web` / `deploy-job` の前に reusable `Quality Check` workflow で `lint` / `typecheck` / `test` / `build` を実行
+- Readiness monitor: `Data Readiness Monitor` workflow が毎日 `06:30 JST` 相当で `data:readiness` を実行し、artifact と job summary に結果を残す
 
 ## 現在の状態
 
-- `MVP` 実装タスクは完了
+- `MVP` と `Hardening` の実装タスクは完了
 - 残りは運用確認で、前週比較データが十分に蓄積した後に候補件数と閾値を再確認する段階
 
 ## 正本ドキュメント
@@ -110,3 +124,4 @@ npm run data:readiness
 - 実装判断ログ: `docs/PLANS.md`
 - データ契約: `docs/data_source_contract.md`
 - OAuth 設定メモ: `docs/google_oauth_setup.md`
+- Owner only 設定メモ: `docs/supabase_owner_only_setup.md`

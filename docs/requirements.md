@@ -76,7 +76,12 @@
 - シークレット: Secret Manager
 - ログ監視: Cloud Logging / Cloud Monitoring
 
-## 14. MVP 対象外
+## 14. 初回立ち上げ方針
+- 最速で立ち上げる場合は既存の GCP 環境を再利用する
+- 初回は既存の `baseballsite` プロジェクト上の `Cloud Run` / `Cloud Run Jobs` / `BigQuery` / `Secret Manager` / `GitHub Actions` 連携を優先して使う
+- 新規 GCP プロジェクトへの再構築や IaC 化は初回立ち上げ完了後に検討する
+
+## 15. MVP 対象外
 - 複数ユーザー権限
 - 被リンク分析
 - 競合自動クロール

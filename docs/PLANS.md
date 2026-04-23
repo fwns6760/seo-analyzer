@@ -48,6 +48,72 @@
 
 ## Execution log
 
+### 2026-03-18 既存 GCP 環境の再利用確認と OAuth 切り分け
+
+### 1. Goal
+既存 `baseballsite` 環境を最短で再利用できるかを確認し、止まっている `seo-fetch-job` の失敗原因を特定する。
+
+### 2. Why
+新規 GCP 再構築や IaC 化の前に、既存の `Cloud Run` / `Cloud Run Jobs` / `BigQuery` / `Secret Manager` / `GitHub Actions` 基盤がそのまま使えるなら、それが最速だから。
+
+### 3. Scope
+- 既存の GCP リソース存在確認
+- `Cloud Run` Web の疎通確認
+- `seo-fetch-job` の直近失敗原因の特定
+- local ADC から OAuth secret を更新して復旧可否を確認
+
+今回はやらないこと:
+- 新規 GCP プロジェクトの再構築
+- Terraform 化
+- batch ロジックそのものの改修
+
+### 4. Files to change
+- `TASKS.md`
+- `docs/PLANS.md`
+
+### 5. Implementation steps
+1. `gcloud run` / `bq` / `gcloud secrets` / `gcloud scheduler` / `gcloud iam` で既存リソースを確認する
+2. `curl` と `npm run data:readiness` で Web と BigQuery の現況を確認する
+3. `gcloud run jobs executions describe` と `gcloud logging read` で `seo-fetch-job` の失敗理由を確認する
+4. local ADC から `Secret Manager` の OAuth secret を更新する
+5. `gcloud run jobs execute` で手動実行し、次の失敗点まで切り分ける
+
+### 6. Risks
+- local ADC が有効でも `Search Console API` / `GA4` に必要な scope が不足している可能性がある
+- `Secret Manager` の更新だけでは scope 不足は直らない
+- 本番 batch は raw append 運用なので、復旧後の再実行で同 date range の別 batch が増える
+
+### 7. Validation
+- `seo-analyzer-web` と `seo-fetch-job` の存在が確認できる
+- `/login` が HTTP `200` を返す
+- `data:readiness` が `BigQuery` から読める
+- `seo-fetch-job` の失敗理由がログ文字列で確定できる
+
+### 8. Progress log
+- `seo-analyzer-web`、`seo-fetch-job`、`seo_raw` / `seo_mart`、OAuth 3 secret、実行用 Service Account、`GitHub Actions` 用 `Workload Identity Provider`、`seo-fetch-daily` の存在を確認した
+- `seo-analyzer-web` の `/login` は HTTP `200` を返し、`data:readiness` は `status = ready` を返した
+- `seo-fetch-job` は `2026-03-15` 以降 3 連続で失敗しており、最初の原因は refresh token の `invalid_grant` だった
+- local ADC の `client_id` / `client_secret` / `refresh_token` から `Secret Manager` の version `2` を追加した
+- 手動 execution `seo-fetch-job-6pbbr` では `Search Console API` の `ACCESS_TOKEN_SCOPE_INSUFFICIENT` まで進み、refresh token 失効の先に scope 不足が残っていると確認した
+- `Secret Manager` version `1` の独自 `Desktop App` client を使って ADC を取り直し、`gcloud` 既定 client の quota project 問題を回避した
+- `scripts/gsc-connection-check.mjs` と `scripts/ga4-connection-check.mjs` が成功し、`Search Console` と `GA4` の両方で必要 scope を確認した
+- その ADC 由来の `client_id` / `client_secret` / `refresh_token` を `Secret Manager` の version `3` として追加した
+- 手動 execution `seo-fetch-job-9gwwr` は成功し、`Cloud Logging` では GSC `1179` 行、GA4 `170` 行の insert を確認した
+- `npm run data:readiness -- --json` で `raw_gsc_latest_date = 2026-03-14`、`raw_ga4_latest_date = 2026-03-14`、`page_daily_latest_date = 2026-03-14`、`candidate_reference_end_date = 2026-03-14`、`status = ready` まで追従した
+- `Cloud Scheduler` `seo-fetch-daily` を手動 run し、`seo-scheduler-invoker@baseballsite.iam.gserviceaccount.com` で execution `seo-fetch-job-5vxjg` が成功することを確認した
+- `Cloud Logging` では Scheduler 経由 execution でも GSC `1179` 行、GA4 `170` 行の insert を確認した
+- `npm run data:readiness -- --json` では `raw_gsc_latest_day_batches = 2`、`raw_ga4_latest_day_batches = 2` となり、同一 date range の append batch が期待どおり増えることを確認した
+- `BigQuery` 直クエリで `2026-03-14` の raw duplicate batch を確認しつつ、`seo_mart.page_daily = 128` 行、`seo_mart.query_daily = 244` 行、`improvement_candidates_base = 792` 行で二重化していないことを確認した
+- `page_daily` の日別行数は `2026-03-11: 132`、`2026-03-13: 136`、`2026-03-14: 128` で安定しており、view の `ROW_NUMBER() ... QUALIFY = 1` が latest batch を正しく拾っていると判断した
+
+### 9. 学習メモ
+- 何をするか: 既存 GCP 環境が再利用できるかを確認し、止まっている batch の認証失敗を切り分ける
+- なぜその GCP サービスを使うか: `Cloud Run` / `Cloud Run Jobs` / `Cloud Scheduler` / `BigQuery` / `Secret Manager` / `IAM` をそれぞれ確認すると、Web、batch、cron、データ、secret、権限のどこで止まっているかを最短で分離できる
+- 代替案は何か: 新規環境を作り直す、コード改修から先に進める
+- 今回はなぜその案を選ぶか: 最速ルートを要件にしたので、既存環境が生きているなら先に復旧可否を確認する方が早い
+- 実行コマンドの意味: `gcloud run services/jobs list` は実行基盤の存在確認、`gcloud secrets list` は secret 確認、`bq ls` と `npm run data:readiness` はデータ基盤確認、`gcloud logging read` は失敗理由の文字列確認、`gcloud secrets versions add` は job が読む OAuth secret の更新、`gcloud run jobs execute` は修復結果の即時確認
+- 次に確認するポイント: 2026-03-19 の定刻 `seo-fetch-daily` 実行でも同じ secret version `3` で成功するか、`page_daily` / `candidate_reference_end_date` が日次で追従するか
+
 ### 2026-03-08 E2-T7 失敗時ログ確認
 
 ### 1. Goal
@@ -2111,3 +2177,239 @@ Google OAuth 連携後に即座に利用できる認証ユーザープロフィ�
 - 変更内容: `BigQuery` の蓄積状況と前週比較 ready 状態を確認する `data:readiness` script を追加した
 - 学習ポイント: `Google Cloud BigQuery` は分析表示だけでなく、raw / mart /比較 window の運用監視にもそのまま使える
 - 次にやること: `2026-03-16` 前後に `npm run data:readiness` を再実行し、候補件数と閾値再調整の要否を判断する
+
+### 2026-03-09 Epic 7 Hardening の起票
+
+### 1. Goal
+MVP 完了後の残リスクを task に落とし、owner only 制御、設定化、品質ゲートを次フェーズとして明確にする。
+
+### 2. Scope
+- owner only 制御の gap を閉じる
+- サイト固有設定と threshold を config/env へ外出しする
+- `GitHub Actions` の pre-deploy quality gate を追加する
+- `data:readiness` は blocking CI ではなく scheduled / informational 監視として整理する
+
+今回はやらないこと:
+- `Cloud Run` を IAM 認証必須に切り替える
+- `BigQuery` の参照構造を全面的に作り直す
+- 画面の大規模 redesign
+
+### 3. Result
+- `TASKS.md` と `docs/TASKS.md` に `Epic 7. Hardening` を追加した
+- `owner only`, config, quality gate, test, deploy gate, readiness monitoring を 6 task に分解した
+- project status は `MVP 完了` と `Hardening backlog` を分けて読める形に更新した
+
+### 4. Notes
+- 何をするか: `Supabase Auth`, `GitHub Actions`, `Google Cloud Run` 周辺の残リスクを、次に実装すべき task へ分解する
+- なぜその GCP サービスを使うか: deploy の品質ゲートは `GitHub Actions` が入口であり、実行基盤は `Google Cloud Run` のまま保つ方がブラウザアプリとの整合が取りやすいため
+- 代替案は何か: `Cloud Run` を認証必須にする、または hardening を docs にだけ残して後回しにする
+- 今回はなぜその案を選ぶか: `Cloud Run` の IAM 認証は Web アプリ用途では扱いづらく、本丸はアプリ / `Supabase` 側の owner 制御と `GitHub Actions` の品質ゲートのため
+- 実行コマンドの意味: 今回は docs 更新のみ。実装時は `npm run lint`、`npm run typecheck`、test script、check workflow を基準にする予定
+- 次に確認するポイント: `E7-T1` で許可メールと `profiles.role` を code / `Supabase` の両面でどこまで強制するかを先に決める
+
+### 5. 3点まとめ
+- 変更内容: `Hardening` を新しい epic として起票し、owner only 制御、設定化、品質ゲートを次フェーズに切り出した
+- 学習ポイント: `Google Cloud Run` の公開 / 非公開だけでは owner only は保証できず、`Supabase Auth` と `GitHub Actions` の境界で責任を分ける方が実装しやすい
+- 次にやること: `E7-T1` から着手し、許可メール固定と `profiles.role` を最優先で実装する
+
+### 2026-03-09 E7-T1 owner only 制御
+
+### 1. Goal
+自分専用管理画面の保証を、`ログイン済みかどうか` だけでなく、固定 owner メールと `profiles.role` の両方で強制する。
+
+### 2. Scope
+- `Next.js` 側で `owner email + profiles.role = owner` の二段チェックを入れる
+- unauthorized session を残さずに sign out させる
+- `Supabase` 側に `profiles.role`、owner backfill、self-escalation 防止を入れる
+
+今回はやらないこと:
+- `Cloud Run` を IAM 認証必須へ切り替える
+- owner メールや site 設定の env/config 化
+- `GitHub Actions` の quality gate 追加
+
+### 3. Result
+- `utils/owner-access.ts` を追加し、固定 owner メール `fwns6760@gmail.com` と `profiles.role = owner` を共通判定するようにした
+- `app/(protected)/layout.tsx`、`app/login/page.tsx`、`app/auth/callback/route.ts` で owner 判定を必須化し、unauthorized user は `/auth/unauthorized` へ送り sign out 後に `/login` へ戻すようにした
+- `Supabase` には migration `add_profiles_role_owner_guard` を適用し、`public.profiles.role`、owner backfill、`handle_new_user` の owner 付与、`prevent_profile_role_change` trigger、insert policy の `viewer` 固定を追加した
+
+### 4. Notes
+- 何をするか: `Supabase Auth` でログインした user が、本当に owner かを app と DB の両方で確認する
+- なぜそのサービスを使うか: owner 制御の正本は `Supabase Auth` の user と `public.profiles` にあり、`Cloud Run` の公開設定だけでは owner 限定を保証できないため
+- 代替案は何か: app 側で email だけを見る、または `Cloud Run` を非公開化して Google Cloud IAM に寄せる
+- 今回はなぜその案を選ぶか: browser アプリでは `Cloud Run` の IAM 認証は扱いづらく、`Supabase` に role を持たせて app と DB の両方で確認する方が実装と運用の筋がよいため
+- 実行コマンドの意味: `npx next typegen` は route 型整合の確認、`npm run build` は owner 判定 route 追加後も本番 build が通るかの確認、`Supabase advisor` は schema 変更後の security warning 確認
+- 次に確認するポイント: `E7-T2` で `Supabase Dashboard` 側の Auth 設定と運用手順を整理し、owner 以外 user の扱いを docs でも固定する
+
+### 5. 3点まとめ
+- 変更内容: 固定 owner メールと `profiles.role` を併用した owner only 制御を app / `Supabase` の両面に追加した
+- 学習ポイント: `Supabase Auth` の session 制御だけでは owner 限定は足りず、`public.profiles` の role と self-escalation 防止まで入れて初めて実装として閉じる
+- 次にやること: `E7-T2` で `Supabase` 側の運用整理を進め、その後 `E7-T3` の config/env 化へ進む
+
+### 2026-03-09 E7-T2 Supabase 側 owner 制限整理
+
+### 1. Goal
+owner 以外 user の作成自体を `Supabase Auth` 側でもできるだけ早く止め、OAuth / profile / 運用手順を docs まで含めて揃える。
+
+### 2. Scope
+- `before-user-created` hook 用の SQL 関数を追加する
+- Google OAuth 開始時に owner アカウントを選びやすくする
+- `Supabase Dashboard` で hook を有効化する手順を docs に残す
+
+今回はやらないこと:
+- hook の dashboard 設定を API で自動化する
+- owner メール固定値の config/env 化
+- `GitHub Actions` での quality gate 追加
+
+### 3. Result
+- `Supabase` には migration `add_owner_signup_hook` を適用し、`public.hook_restrict_owner_signup(event jsonb)` を追加した
+- `app/auth/login/route.ts` では `signInWithOAuth` に `login_hint = fwns6760@gmail.com` と `prompt = select_account` を追加した
+- `docs/supabase_owner_only_setup.md` を追加し、`Before user created` hook を `public.hook_restrict_owner_signup` に紐付ける dashboard 手順と確認ポイントを整理した
+
+### 4. Notes
+- 何をするか: `Supabase Auth` の `before-user-created` hook を使い、owner メール以外の signup を `403` で拒否する
+- なぜそのサービスを使うか: app 側で弾くだけだと auth user 自体は作れてしまうため、`Supabase Auth` の user 作成タイミングで止めた方が owner only の責務分担が明確になるため
+- 代替案は何か: app 側の role/email check だけに頼る、または dashboard 手順だけ残して SQL hook を作らない
+- 今回はなぜその案を選ぶか: `before-user-created` hook は `Supabase` が公式に用意している signup 制御の入口で、固定 owner メールの案件には最短で合うため
+- 実行コマンドの意味: SQL では `public.hook_restrict_owner_signup('{\"user\":{\"email\":\"...\"}}'::jsonb)` を実行して owner / non-owner の戻り値を確認した。`npm run build` は OAuth route の `queryParams` 追加後も本番 build が通るかの確認
+- 次に確認するポイント: `Supabase Dashboard` で `Before user created` hook を有効化し、owner 以外の Google アカウントで実際に signup が拒否されることを確認する
+
+### 5. 3点まとめ
+- 変更内容: `Supabase Auth` の signup 入口に owner メール制限の SQL hook を追加し、hook 有効化手順も docs に残した
+- 学習ポイント: owner only 制御は app 画面だけでなく、`Supabase Auth` の user 作成段階で止めると無駄な auth user を減らせる
+- 次にやること: `E7-T3` で固定値を config/env へ外出しし、owner メールや project/dataset/threshold の再利用性を上げる
+
+### 2026-03-09 E7-T3 サイト固有設定と threshold の config/env 化
+
+### 1. Goal
+`yoshilover.com`、`baseballsite`、固定 owner メール、opportunity 閾値の直書きを app / scripts / workflow から外し、既定値は保ちつつ再利用しやすい設定面へ寄せる。
+
+### 2. Scope
+- site 名、domain、origin、owner email、`BigQuery` project / dataset / location を共通 config に寄せる
+- opportunity 判定閾値を 4 helper から切り離し、config + env override にする
+- `Cloud Run` / `Cloud Run Jobs` deploy workflow も config 変更を拾い、必要な runtime env を渡す
+
+今回はやらないこと:
+- `Supabase` SQL hook の owner メールを env から直接参照する
+- service account 名や `PROJECT_ID` を GitHub variables に移す
+- threshold の UI 編集画面を作る
+
+### 3. Result
+- `config/runtime-defaults.json` を追加し、site / owner / `BigQuery` / opportunity の既定値を 1 か所へ集約した
+- `utils/runtime-config.ts` と `scripts/lib/runtime-config.mjs` を追加し、app 側と batch/readiness script 側の両方で env override を共通解釈するようにした
+- `app/layout.tsx`、`app/(protected)/layout.tsx`、`utils/owner-access.ts`、`utils/bigquery.ts`、`utils/articles.ts`、`utils/queries.ts`、`utils/dashboard.ts`、`utils/opportunities.ts`、各 opportunity helper、`scripts/lib/gsc-client.mjs`、`scripts/lib/ga4-client.mjs`、`scripts/seo-batch-job.mjs`、`scripts/data-readiness-check.mjs` を config 参照へ置き換えた
+- `.env.example` と `README.md` に env 一覧と既定値ファイルの場所を追記し、workflow では `config/**` 変更時も deploy が走るよう path filter を追加した
+
+### 4. Notes
+- 何をするか: app / batch / readiness script / deploy workflow がそれぞれ持っていた site 固定値と threshold を、共通 config と env override で読むように揃える
+- なぜその GCP サービスを使うか: 本番の runtime 設定は `Google Cloud Run` と `Google Cloud Run Jobs` の env に乗るため、code の固定値を減らしても deploy 先へ値を明示的に渡せる
+- 代替案は何か: code 内の定数だけ整理して env 化しない、または GitHub / `Cloud Run` 側の variables 管理へ一気に寄せる
+- 今回はなぜその案を選ぶか: まずは repo 内の重複固定値を消すのが先で、既定値ファイル + env override にすると local と本番の両方を壊さずに段階移行できるため
+- 実行コマンドの意味: `npx next typegen` は config import 追加後の route 型整合確認、`node --check scripts/seo-batch-job.mjs` と `node --check scripts/data-readiness-check.mjs` は JSON import を含む script 構文確認、`npm run build` は app / workflow 向け config 差し替え後も本番 build が通るかの確認
+- 次に確認するポイント: `E7-T4` で `lint` / `typecheck` / `build` を正式 script 化し、deploy 前に最低限の check を必須化する
+
+### 5. 3点まとめ
+- 変更内容: site / owner / `BigQuery` / threshold の直書きを共通 config と env override へ寄せ、app / scripts / workflow で同じ設定面を使うようにした
+- 学習ポイント: `Google Cloud Run` と `Cloud Run Jobs` は code の固定値を減らしても runtime env を渡せるので、最初に「既定値」と「環境差分」の責務を分けると後から整理しやすい
+- 次にやること: `E7-T4` で quality check script を追加し、`GitHub Actions` の deploy 前段に置ける形へ進める
+
+### 2026-03-09 E7-T4 quality check 追加
+
+### 1. Goal
+最低限の品質ゲートとして `lint`、`typecheck`、`build` をローカル command に揃え、次の `deploy 前 check` 実装でそのまま再利用できる状態にする。
+
+### 2. Scope
+- `eslint` と `eslint-config-next` を追加する
+- `npm run lint`、`npm run typecheck`、`npm run check` を追加する
+- 現在の codebase が新しい check を通るよう、必要な最小修正だけ入れる
+
+今回はやらないこと:
+- `GitHub Actions` に check workflow をまだ追加しない
+- test runner や smoke test を追加しない
+- `data:readiness` を blocking gate にしない
+
+### 3. Result
+- `eslint.config.mjs` を追加し、`eslint-config-next/core-web-vitals` ベースの lint を有効化した
+- `package.json` に `lint`、`typecheck`、`check` script を追加した
+- `README.md` に `npm run lint`、`npm run typecheck`、`npm run check` を追記した
+- `tsconfig.json` では `.next/dev/types/**/*.ts` を外し、`typecheck` が stale な dev 生成物で落ちないようにした
+
+### 4. Notes
+- 何をするか: `Next.js` / `TypeScript` 案件で最低限ほしい `lint -> typecheck -> build` を、手元でも CI でも同じ command で呼べるようにする
+- なぜその GCP サービスを使うか: 今回の変更自体は GCP を直接触らないが、次の `GitHub Actions` pre-deploy gate は最終的に `Google Cloud Run` deploy の前段へ置くため、先に command 面を固定しておく
+- 代替案は何か: `build` だけを品質ゲートとみなす、または lint を入れず `tsc --noEmit` のみにする
+- 今回はなぜその案を選ぶか: `build` だけでは code smell や framework rule を拾いきれず、`eslint-config-next` を足しても実装コストはまだ小さいため
+- 実行コマンドの意味: `npm run lint` は `Next.js` / React ルール確認、`npm run typecheck` は `tsc --noEmit` で型整合確認、`npm run check` は deploy 前の手元一括確認。`tsconfig` から `.next/dev/types` を外したのは dev server 由来の stale file を quality gate の正本にしないため
+- 次に確認するポイント: `E7-T5` で最小 test / smoke test を追加し、`E7-T6` で `npm run check` を deploy workflow の前段へ置く
+
+### 5. 3点まとめ
+- 変更内容: `eslint`、`typecheck`、`build` を `npm run check` で一括実行できるようにした
+- 学習ポイント: deploy 前 gate は最初に「workflow を作る」より先に、「ローカルでも再利用できる単一 command」を作ると後の CI 組み込みが楽になる
+- 次にやること: `E7-T5` で最小 test / smoke test を追加する
+
+### 2026-03-09 E7-T5 最小 test / smoke test 追加
+
+### 1. Goal
+最小限でも壊れやすい helper と runtime config を自動確認できるようにし、`deploy 前 check` に繋げるための test 面を追加する。
+
+### 2. Scope
+- 追加依存なしで動く `node:test` を使う
+- pure helper と runtime config に unit / smoke test を足す
+- `npm test` と `npm run test:smoke` を追加する
+
+今回はやらないこと:
+- Playwright や E2E browser test を入れない
+- BigQuery / Supabase へ実接続する integration test を入れない
+- deploy workflow にまだ組み込まない
+
+### 3. Result
+- `package.json` に `test:unit`、`test:smoke`、`test` script を追加した
+- `tests/unit-comparison-window.test.mjs` で 14 日比較 window の ready / eta 計算を検証した
+- `tests/unit-request-url.test.mjs` で local / forwarded header の public URL 解決を検証した
+- `tests/smoke-runtime-config.test.mjs` で runtime config の既定値と env override、`pickSite` の選択ロジックを検証した
+- `tsconfig.json` は `.next/dev/**/*` を exclude し、test 追加後も `typecheck` が dev server 生成物で不安定にならないよう整理した
+
+### 4. Notes
+- 何をするか: database や OAuth を直接叩かなくても、比較 window、公開 URL、site / BigQuery 設定のような事故りやすい基礎ロジックを自動検証する
+- なぜその GCP サービスを使うか: 今回は GCP を直接叩かないが、次の `GitHub Actions` deploy gate で `Google Cloud Run` 反映前に安全確認を入れるため、その前提となる test command を整えている
+- 代替案は何か: すぐに Playwright を入れる、または test は後回しで workflow だけ先に作る
+- 今回はなぜその案を選ぶか: まずは追加依存なしで回る `node:test` の方が軽く、pure helper の regressions を短時間で拾えるため
+- 実行コマンドの意味: `npm test` は unit + smoke の一括確認、`npm run test:smoke` は runtime config と site selection の軽い確認。`tsconfig` から `.next/dev` を除いたのは、test 導入後も `tsc --noEmit` が dev session 状態に引きずられないようにするため
+- 次に確認するポイント: `E7-T6` で `npm run check` と `npm test` を `GitHub Actions` の deploy 前段へ入れ、`data:readiness` は scheduled / informational に分けて扱う
+
+### 5. 3点まとめ
+- 変更内容: `node:test` ベースの unit / smoke test と `npm test` command を追加した
+- 学習ポイント: browser E2E を入れる前でも、pure helper と runtime config を押さえるだけで hardening の価値は十分出る
+- 次にやること: `E7-T6` で deploy 前 check と readiness 監視の workflow を整理する
+
+### 2026-03-09 E7-T6 deploy 前 check 必須化と data:readiness の定期監視整理
+
+### 1. Goal
+`npm run check` と `npm test` を `GitHub Actions` の deploy 前段へ組み込み、`data:readiness` は deploy blocker から切り離して scheduled monitoring に整理する。
+
+### 2. Scope
+- reusable な quality workflow を追加する
+- `deploy-web` / `deploy-job` の前段に quality workflow を必須化する
+- `data:readiness` を manual + scheduled workflow に分け、summary と artifact を残す
+
+今回はやらないこと:
+- readiness が `collecting` の間に workflow を fail させない
+- Slack / email 通知を追加しない
+- readiness 用の専用 Service Account を新設しない
+
+### 3. Result
+- `.github/workflows/quality-check.yml` を追加し、`pull_request` / `workflow_dispatch` / `workflow_call` で `lint`、`typecheck`、`test`、`build` を実行する reusable workflow にした
+- `.github/workflows/deploy-web.yml` と `.github/workflows/deploy-job.yml` は `quality-check` job を先に呼び、`needs` で deploy を待つ形に更新した
+- `.github/workflows/data-readiness-monitor.yml` を追加し、毎日 `21:30 UTC` (`06:30 JST`) と manual run で `node scripts/data-readiness-check.mjs --json` を実行し、`readiness-summary.json` を artifact と job summary に残すようにした
+
+### 4. Notes
+- 何をするか: deploy の入口で code 品質を止め、`data:readiness` は「本番データがまだ 14 日たまっていない」だけで deploy を止めないよう責務を分ける
+- なぜその GCP サービスを使うか: readiness の正本は `BigQuery` にあり、`GitHub Actions` から `Workload Identity Federation` で `Google Cloud` 認証すれば、長期鍵なしで定期確認できるため
+- 代替案は何か: deploy workflow の中で `data:readiness` まで実行して blocker にする、または readiness を手元コマンドだけに残す
+- 今回はなぜその案を選ぶか: readiness はコード品質ではなくデータ成熟度なので、deploy gate と分けた方が誤検知で本番反映を止めずに済むため
+- 実行コマンドの意味: reusable `Quality Check` は `npm run lint`、`npm run typecheck`、`npm test`、`npm run build` を順に実行する。`Data Readiness Monitor` は `node scripts/data-readiness-check.mjs --json` を実行し、結果を `GITHUB_STEP_SUMMARY` と artifact へ保存する
+- 次に確認するポイント: GitHub Actions 上で `Data Readiness Monitor` を 1 回手動実行し、`seo-web-deployer` に `BigQuery` 読み取り権限が足りるかを確認する。足りなければ `roles/bigquery.jobUser` / `roles/bigquery.dataViewer` を付与するか、専用読み取り SA へ切り替える
+
+### 5. 3点まとめ
+- 変更内容: deploy 前 quality gate を workflow 化し、`data:readiness` を scheduled monitoring へ分離した
+- 学習ポイント: `Google Cloud BigQuery` の readiness 確認は deploy blocker にせず、`GitHub Actions` の別 workflow で観測する方が実運用で扱いやすい
+- 次にやること: `Data Readiness Monitor` を GitHub Actions で手動実行して、IAM と summary 出力を確認する

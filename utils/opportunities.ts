@@ -21,6 +21,7 @@ import {
   rewriteOrderByClause,
   rewriteWhereClause,
 } from "@/utils/opportunity-rewrite";
+import { bigQueryConfig } from "@/utils/runtime-config";
 
 export const opportunityKindOrder = ["growth", "rank-drop", "rewrite", "cannibal"] as const;
 
@@ -142,13 +143,8 @@ export type OpportunityFeedData = {
   requestedSelectionMissing: boolean;
 };
 
-const projectId =
-  process.env.GOOGLE_CLOUD_PROJECT ??
-  process.env.GCP_PROJECT_ID ??
-  process.env.BIGQUERY_PROJECT_ID ??
-  "baseballsite";
-
-const martDataset = process.env.BIGQUERY_MART_DATASET ?? "seo_mart";
+const projectId = bigQueryConfig.projectId;
+const martDataset = bigQueryConfig.martDatasetId;
 const candidateListLimit = 24;
 
 function martTable(tableName: string) {

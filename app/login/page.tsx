@@ -1,5 +1,11 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import {
+  getOwnerAccessState,
+  getUnauthorizedRedirectPath,
+  ownerLoginErrorMessages,
+  sanitizeNextPath,
+} from "@/utils/owner-access";
+import { appConfig } from "@/utils/runtime-config";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -11,35 +17,42 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const error = params.error;
-  const next = params.next?.startsWith("/") ? params.next : "/";
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const next = sanitizeNextPath(params.next);
+  const ownerAccess = await getOwnerAccessState();
 
-  if (user) {
+  if (ownerAccess.user && ownerAccess.isOwner) {
     redirect(next);
   }
+
+  if (ownerAccess.user && ownerAccess.failureReason) {
+    redirect(getUnauthorizedRedirectPath(ownerAccess.failureReason, next));
+  }
+
+  const errorMessage =
+    error && error in ownerLoginErrorMessages
+      ? ownerLoginErrorMessages[error as keyof typeof ownerLoginErrorMessages]
+      : error;
 
   return (
     <main className="page-shell">
       <section className="panel hero-panel">
         <p className="eyebrow">Supabase Auth + Google OAuth</p>
-        <h1>SEO Analyzer Login</h1>
+        <h1>{appConfig.appName} Login</h1>
         <p className="lede">
-          Google アカウントでログインして、SEO 分析ダッシュボードに入ります。
+          許可された owner Google アカウントだけが、SEO 分析ダッシュボードに入れます。
         </p>
       </section>
 
       <section className="panel status-panel">
         <h2>Google でサインイン</h2>
         <p className="lede">
-          ログイン後は Supabase の callback で session を交換し、元の画面に戻ります。
+          ログイン後は Supabase の callback で session を交換し、許可メールと
+          `profiles.role = owner` を確認してから元の画面に戻ります。
         </p>
 
-        {error ? (
+        {errorMessage ? (
           <div className="error-box">
-            <strong>ログイン開始エラー:</strong> {error}
+            <strong>ログインエラー:</strong> {errorMessage}
           </div>
         ) : null}
 

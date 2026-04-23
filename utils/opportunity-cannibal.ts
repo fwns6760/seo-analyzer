@@ -1,8 +1,6 @@
-const cannibalThresholds = {
-  currentSupportCountMin: 2,
-  currentImpressionsMin: 80,
-  currentPositionMax: 20,
-} as const;
+import { opportunityThresholds } from "@/utils/runtime-config";
+
+const cannibalThresholds = opportunityThresholds.cannibal;
 
 export const cannibalWhereClause = `
 entity_type = "query"

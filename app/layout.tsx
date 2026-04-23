@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { appConfig } from "@/utils/runtime-config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SEO Analyzer",
-  description: "yoshilover.com SEO analysis dashboard",
+  title: appConfig.appName,
+  description: appConfig.description,
 };
 
 export default function RootLayout({

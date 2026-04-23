@@ -1,5 +1,6 @@
 import { getAccessToken } from "./lib/google-auth.mjs";
 import { runQuery } from "./lib/bigquery-client.mjs";
+import { getBigQueryRuntimeConfig } from "./lib/runtime-config.mjs";
 
 const BIGQUERY_SCOPE = "BigQuery read scope";
 const comparisonWindowDays = 14;
@@ -12,16 +13,14 @@ function parseArgs(argv) {
 
 function resolveConfig() {
   const args = parseArgs(process.argv.slice(2));
+  const bigQueryConfig = getBigQueryRuntimeConfig();
 
   return {
     json: args.json,
-    projectId:
-      process.env.BIGQUERY_PROJECT_ID ||
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      "baseballsite",
-    rawDatasetId: process.env.BIGQUERY_RAW_DATASET || "seo_raw",
-    martDataset: process.env.BIGQUERY_MART_DATASET || "seo_mart",
-    location: process.env.BIGQUERY_LOCATION || "asia-northeast1",
+    projectId: bigQueryConfig.projectId,
+    rawDatasetId: bigQueryConfig.rawDatasetId,
+    martDataset: bigQueryConfig.martDatasetId,
+    location: bigQueryConfig.location,
   };
 }
 

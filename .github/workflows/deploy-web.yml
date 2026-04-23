@@ -8,6 +8,7 @@ on:
       - ".github/workflows/deploy-web.yml"
       - "app/**"
       - "components/**"
+      - "config/**"
       - "utils/**"
       - "Dockerfile"
       - "next.config.ts"
@@ -29,6 +30,14 @@ env:
   REPOSITORY: seo-analyzer
   IMAGE_NAME: seo-analyzer-web
   SERVICE_NAME: seo-analyzer-web
+  APP_NAME: SEO Analyzer
+  APP_SITE_DISPLAY_NAME: Yoshilover.com
+  APP_SITE_DOMAIN: yoshilover.com
+  APP_SITE_ORIGIN: https://yoshilover.com
+  OWNER_EMAILS: fwns6760@gmail.com
+  BIGQUERY_RAW_DATASET: seo_raw
+  BIGQUERY_MART_DATASET: seo_mart
+  BIGQUERY_LOCATION: asia-northeast1
   RUNTIME_SERVICE_ACCOUNT: seo-web-runtime@baseballsite.iam.gserviceaccount.com
   DEPLOYER_SERVICE_ACCOUNT: seo-web-deployer@baseballsite.iam.gserviceaccount.com
   WORKLOAD_IDENTITY_PROVIDER: projects/487178857517/locations/global/workloadIdentityPools/github-actions/providers/seo-analyzer-web
@@ -36,7 +45,11 @@ env:
   SUPABASE_PUBLISHABLE_KEY: sb_publishable_AulFARm6kHiJUbu8cpd-og_OtFwhAyD
 
 jobs:
+  quality-check:
+    uses: ./.github/workflows/quality-check.yml
+
   deploy:
+    needs: quality-check
     runs-on: ubuntu-latest
 
     steps:
@@ -84,4 +97,4 @@ jobs:
             --image="${IMAGE_URI}" \
             --service-account="${RUNTIME_SERVICE_ACCOUNT}" \
             --allow-unauthenticated \
-            --set-env-vars="NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+            --set-env-vars="NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY},APP_NAME=${APP_NAME},APP_SITE_DISPLAY_NAME=${APP_SITE_DISPLAY_NAME},APP_SITE_DOMAIN=${APP_SITE_DOMAIN},APP_SITE_ORIGIN=${APP_SITE_ORIGIN},OWNER_EMAILS=${OWNER_EMAILS},BIGQUERY_PROJECT_ID=${PROJECT_ID},BIGQUERY_RAW_DATASET=${BIGQUERY_RAW_DATASET},BIGQUERY_MART_DATASET=${BIGQUERY_MART_DATASET},BIGQUERY_LOCATION=${BIGQUERY_LOCATION}"

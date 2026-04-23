@@ -1,10 +1,11 @@
 # TASKS.md
 
 ## Project status
-- Phase: MVP
+- Phase: Hardening
 - Overall progress: 100%
-- Current focus: 実データ蓄積待ち。次: 2026-03-16 前後に前週比較の反映と閾値を再確認
-- Updated at: 2026-03-09
+- MVP progress: 100%
+- Current focus: 既存 `baseballsite` 環境の再利用確認、`seo-fetch-job` の OAuth 修復、`Cloud Scheduler` 経路確認まで完了。次は 2026-03-19 の定刻 `seo-fetch-daily` 実行結果と、`page_daily` / `candidate_reference_end_date` の日次追従を確認する
+- Updated at: 2026-03-18
 
 ## Status rules
 - Backlog
@@ -181,7 +182,40 @@ Goal: GitHub への push を起点に GCP へ安全に自動デプロイでき�
 
 ---
 
+## Epic 7. Hardening
+Status: Done
+Goal: 自分専用運用の保証、設定の再利用性、デプロイ前品質ゲートを整える
+
+### Tasks
+- [x] E7-T1 owner only 制御の実装（許可メール固定 + `profiles.role`）
+- [x] E7-T2 Supabase 側の owner 制限整理（OAuth / profile / 必要な SQL or policy）
+- [x] E7-T3 サイト固有設定と opportunity 閾値の config/env 化
+- [x] E7-T4 quality check 追加（`lint` / `typecheck` / `build`）
+- [x] E7-T5 最小 test / smoke test の追加
+- [x] E7-T6 deploy 前 check 必須化と `data:readiness` の定期監視整理
+
+### Notes
+- Blocker:
+- Owner: me
+- Plan: `docs/PLANS.md` の Hardening 計画を正本とする
+
+---
+
 ## Done log
+- 2026-03-18: duplicate batch に対する mart の追従も確認。`2026-03-14` の raw は GSC `page_daily` が `119` 行 x `2 batch`、GA4 `landing_page_daily` が `82` 行 x `2 batch` だったが、`BigQuery` `seo_mart.page_daily` は `128` 行、`seo_mart.query_daily` は `244` 行、`seo_mart.improvement_candidates_base` は `792` 行で、二重化は見られなかった。`page_daily` の日別行数は `2026-03-11: 132`、`2026-03-13: 136`、`2026-03-14: 128` で安定しており、view の `ROW_NUMBER() ... QUALIFY = 1` が duplicate batch でも有効に働いていることを確認した
+- 2026-03-18: `Google Cloud Scheduler` `seo-fetch-daily` の実行経路を確認。job 定義は `run.googleapis.com/v2/projects/baseballsite/locations/asia-northeast1/jobs/seo-fetch-job:run` を指し、手動 run 後の `lastAttemptTime` は `2026-03-18T09:40:03Z` に更新された。`Cloud Run Jobs` execution `seo-fetch-job-5vxjg` は `seo-scheduler-invoker@baseballsite.iam.gserviceaccount.com` で成功し、`Cloud Logging` では insertedRowCount が GSC `1179`、GA4 `170` を確認。`npm run data:readiness -- --json` では `raw_gsc_latest_day_batches = 2`、`raw_ga4_latest_day_batches = 2` となり、Scheduler 経由でも同じ date range の append batch が正常に流れることを確認した
+- 2026-03-18: `seo-fetch-job` の OAuth を復旧。`Secret Manager` version `1` の `Desktop App` client を使って `gcloud auth application-default login --no-browser` の remote bootstrap で ADC を再認可し、`scripts/gsc-connection-check.mjs` と `scripts/ga4-connection-check.mjs` の両方が成功することを確認した。その ADC 由来の `client_id` / `client_secret` / `refresh_token` を `google-oauth-*` secret の version `3` として追加し、手動 execution `seo-fetch-job-9gwwr` が成功。`Cloud Logging` では insertedRowCount が GSC `1179`、GA4 `170`、`npm run data:readiness -- --json` では `raw_gsc_latest_date = 2026-03-14`、`raw_ga4_latest_date = 2026-03-14`、`page_daily_latest_date = 2026-03-14`、`candidate_reference_end_date = 2026-03-14`、`status = ready` を確認した
+- 2026-03-18: 既存 `baseballsite` 環境の再利用可否を確認。`Cloud Run` `seo-analyzer-web`、`Cloud Run Jobs` `seo-fetch-job`、`BigQuery` `seo_raw` / `seo_mart`、`Secret Manager` の OAuth 3 secret、`Service Account`、`GitHub Actions` 用 `Workload Identity Provider`、`Cloud Scheduler` `seo-fetch-daily` の存在を確認し、`/login` の HTTP `200` も確認した。一方で `seo-fetch-job` は `2026-03-15` 以降 3 連続で失敗しており、最初の原因は `google-oauth-refresh-token` の `invalid_grant`、Secret を local ADC で version `2` へ更新後の手動 execution `seo-fetch-job-6pbbr` では `Search Console API` の `ACCESS_TOKEN_SCOPE_INSUFFICIENT` へ進んだ。次は `gcloud auth application-default login` を `webmasters.readonly` と `analytics.readonly` を含む scope 付きで再実行し、secret を再更新して job 成功まで確認する
+- 2026-03-18: `docs/requirements.md` に初回立ち上げ方針を追記し、最速で立ち上げる場合は既存 `baseballsite` 環境の再利用を優先することを明記した。対象は `Cloud Run` / `Cloud Run Jobs` / `BigQuery` / `Secret Manager` / `GitHub Actions` 連携で、新規 GCP プロジェクト再構築や IaC 化は初回立ち上げ後に検討する方針へ整理
+- 2026-03-11: `BigQuery mart` の追従確認を実施。`npm run data:readiness -- --json` で `page_daily_latest_date = 2026-03-07`、`page_daily_active_days = 5/14`、`candidate_reference_end_date = 2026-03-07`、`candidate_total_rows = 649`、`candidate_page_previous_rows = 0` を確認し、比較状態は `collecting`、最短見込み日は `2026-03-16` のまま。追加で `seo_mart.query_daily` は `latest_date = 2026-03-07`、当日 `291` 行、`improvement_candidates_base` は `page 175 / query 472 / category 2` 行で、いずれも `previous_ready_rows = 0` を確認した
+- 2026-03-11: `Google Cloud Run Jobs` `seo-fetch-job` を手動 execute し、execution `seo-fetch-job-6qzqn` の完了を確認した。`2026-03-11T04:06:55Z` 開始、`2026-03-11T04:07:18Z` 完了で、job 本体の最新 execution pointer は `EXECUTION_SUCCEEDED`、累計 execution は `10`。`Cloud Logging` では batch_id `seo-all-2026-03-06-2026-03-07-20260311040707`、`insertedRowCount` は GSC `1385`、GA4 `177` を確認し、`BigQuery` `seo_raw.raw_gsc` / `seo_raw.raw_ga4` でも同 batch_id の件数一致を確認した。raw は追記運用のため同 date range に複数 batch が残る
+- 2026-03-11: GCP へ手動反映を実施。ローカル作業ツリーのまま `Google Cloud Build` で web / batch image を作成し、`Cloud Run` `seo-analyzer-web` と `Cloud Run Jobs` `seo-fetch-job` を更新した。batch 側は `scripts/lib/runtime-config.mjs` が `config/runtime-defaults.json` を読むため、`Dockerfile.job` に `COPY config ./config` を追加して image 起動時の設定欠落を解消。反映後、web は revision `seo-analyzer-web-00012-d77` が `100%` traffic、job は generation `8` になり、`/login` の HTTPS `200` を確認した。job の手動 execute は未実施
+- 2026-03-09: E7-T6 を完了。reusable workflow `.github/workflows/quality-check.yml` を追加し、`pull_request` と manual run で `lint` / `typecheck` / `test` / `build` を実行できるようにした。`deploy-web.yml` と `deploy-job.yml` は `quality-check` job を前段に持つ構成へ更新し、deploy 前 gate を必須化。`data:readiness` は blocker にせず `.github/workflows/data-readiness-monitor.yml` を別追加して、毎日 `06:30 JST` 相当の schedule と manual run で `readiness-summary.json` を artifact / job summary に残す運用へ整理した。ローカルでは `npm run lint`、`npm run typecheck`、`npm test`、`npm run check` 成功を確認。GitHub Actions 上の `Data Readiness Monitor` は未実行のため、既存 `seo-web-deployer` に BigQuery 読み取り権限が足りない場合は別途 `roles/bigquery.jobUser` / `roles/bigquery.dataViewer` 付与か専用 SA への切替確認が必要
+- 2026-03-09: E7-T5 を完了。依存を増やしすぎないため `node:test` ベースで `test:unit`、`test:smoke`、`test` script を追加し、`tests/unit-comparison-window.test.mjs`、`tests/unit-request-url.test.mjs`、`tests/smoke-runtime-config.test.mjs` を作成した。比較 window、公開 URL 解決、runtime config と GSC site 選択の既定値/override を検証し、`eslint.config.mjs` では test file に Node globals を付与。`tsconfig.json` は `.next/dev/**/*` を exclude して typecheck と build の正本を分離し、`npm test`、`npm run test:smoke`、`npm run lint`、`npm run typecheck`、`npm run check` 成功まで確認
+- 2026-03-09: E7-T4 を完了。`eslint` / `eslint-config-next` を追加し、`eslint.config.mjs` を作成して `npm run lint` を有効化。`package.json` には `lint`、`typecheck`、`check` script を追加し、`README.md` のローカル実行コマンドも更新した。`typecheck` が `.next/dev/types` の stale file を拾って落ちていたため、`tsconfig.json` は `.next/types/**/*.ts` のみを include する形へ整理。`npm run lint`、`npm run typecheck`、`npm run check` 成功まで確認
+- 2026-03-09: E7-T3 を完了。`config/runtime-defaults.json` と `utils/runtime-config.ts` / `scripts/lib/runtime-config.mjs` を追加し、site 名、owner email、`BigQuery project/raw/mart/location`、opportunity threshold を app / scripts / workflow から共通参照する形へ整理した。`app/layout.tsx`、`app/(protected)/layout.tsx`、`utils/bigquery.ts`、`utils/articles.ts`、`utils/queries.ts`、`utils/dashboard.ts`、`utils/opportunities.ts`、`scripts/lib/gsc-client.mjs`、`scripts/lib/ga4-client.mjs`、`scripts/seo-batch-job.mjs`、`scripts/data-readiness-check.mjs` を更新し、`.env.example` と `README.md` に env 一覧を追記。`Cloud Run` / `Cloud Run Jobs` workflow も `config/**` 変更で再デプロイされるよう path filter と runtime env を追加し、`npx next typegen`、`node --check scripts/seo-batch-job.mjs`、`node --check scripts/data-readiness-check.mjs`、`npm run build` 成功を確認
+- 2026-03-09: E7-T2 を完了。Supabase には migration `add_owner_signup_hook` を適用し、`public.hook_restrict_owner_signup(event jsonb)` で owner メール以外の signup を `403` で拒否する SQL hook を追加した。`app/auth/login/route.ts` では Google OAuth 開始時に `login_hint=fwns6760@gmail.com` と `prompt=select_account` を渡すようにし、`docs/supabase_owner_only_setup.md` に `Before user created` hook を `public.hook_restrict_owner_signup` へ紐付ける dashboard 手順を記載。SQL 単体で owner / non-owner の戻り値を確認し、`npm run build` 成功まで確認
+- 2026-03-09: E7-T1 を完了。固定 owner メール `fwns6760@gmail.com` と `profiles.role = owner` の二段チェックを `app/(protected)/layout.tsx`、`app/login/page.tsx`、`app/auth/callback/route.ts` に追加し、unauthorized session を `/auth/unauthorized` で強制 sign out するようにした。Supabase には migration `add_profiles_role_owner_guard` を適用して `public.profiles.role`、owner backfill、`handle_new_user` の owner 付与、`prevent_profile_role_change` trigger、`Users can insert own profile` の viewer 固定を追加。`npx next typegen`、`npm run build`、Supabase security advisor を確認し、残 advisory は `Leaked Password Protection Disabled` の 1 件のみ
 - 2026-03-06: G0-T0 GCP学習優先の実装順を整理し、Step A-H の完了条件を追加
 - 2026-03-08: G0-T1 を完了。`baseballsite` を対象に `gcloud` 認証、プロジェクト選択、主要 API と `cloudbuild.googleapis.com` の有効化を確認
 - 2026-03-08: G0-T2 を完了。`seo-web-runtime` と `seo-batch-runtime` の Service Account を作成し、`fwns6760@gmail.com` に `roles/iam.serviceAccountUser` を付与。デフォルトの Compute Engine Service Account は `roles/editor` 付きのため今後は使わない方針を明記
@@ -243,4 +277,5 @@ flowchart LR
     C --> D[認証基盤]
     D --> E[MVP画面実装]
     E --> F[改善候補ロジック]
+    F --> G[Hardening]
 ```

@@ -1,15 +1,6 @@
-const growthThresholds = {
-  currentImpressionsMin: 50,
-  currentPositionMax: 20,
-  previousClicksMin: 5,
-  clicksDeltaMin: 3,
-  clicksGainRateMin: 0.2,
-  previousSessionsMin: 5,
-  sessionsDeltaMin: 3,
-  sessionsGainRateMin: 0.2,
-  positionDeltaMax: -0.5,
-  impressionsDeltaMin: 30,
-} as const;
+import { opportunityThresholds } from "@/utils/runtime-config";
+
+const growthThresholds = opportunityThresholds.growth;
 
 function formatPercent(rate: number) {
   return `${Math.round(rate * 100)}%`;

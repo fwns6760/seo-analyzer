@@ -5,12 +5,20 @@
   "description": "SEO analyzer web app with Next.js, Supabase Auth, and GCP batch jobs",
   "scripts": {
     "dev": "next dev",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run build",
+    "test:unit": "node --test tests/unit-*.test.mjs",
+    "test:smoke": "node --test tests/smoke-*.test.mjs",
+    "test": "npm run test:unit && npm run test:smoke",
     "build": "next build",
     "start": "next start",
     "start:sample": "node server.js",
     "gsc:check": "node scripts/gsc-connection-check.mjs",
     "ga4:check": "node scripts/ga4-connection-check.mjs",
     "data:readiness": "node scripts/data-readiness-check.mjs",
+    "analyst:digest": "node scripts/analyst-digest.mjs",
+    "x:ingest": "node scripts/x-ingest.mjs",
     "batch:job": "node scripts/seo-batch-job.mjs",
     "batch:job:dry-run": "node scripts/seo-batch-job.mjs --dry-run"
   },
@@ -25,9 +33,14 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^25.3.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^5.9.3"
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.1.6",
+    "globals": "^17.4.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
   }
 }

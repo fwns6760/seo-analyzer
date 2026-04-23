@@ -1,14 +1,6 @@
-const rankDropThresholds = {
-  previousImpressionsMin: 50,
-  previousPositionMax: 20,
-  positionDeltaMin: 1,
-  previousClicksMin: 5,
-  clicksDeltaMin: 3,
-  clicksLossRateMin: 0.2,
-  previousSessionsMin: 5,
-  sessionsDeltaMin: 3,
-  sessionsLossRateMin: 0.2,
-} as const;
+import { opportunityThresholds } from "@/utils/runtime-config";
+
+const rankDropThresholds = opportunityThresholds.rankDrop;
 
 function formatPercent(rate: number) {
   return `${Math.round(rate * 100)}%`;

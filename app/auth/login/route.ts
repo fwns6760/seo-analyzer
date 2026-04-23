@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { primaryOwnerEmail } from "@/utils/owner-access";
 import { getPublicUrl } from "@/utils/request-url";
 import { createClient } from "@/utils/supabase/server";
 
@@ -13,6 +14,10 @@ export async function POST(request: Request) {
     provider: "google",
     options: {
       redirectTo,
+      queryParams: {
+        login_hint: primaryOwnerEmail,
+        prompt: "select_account",
+      },
     },
   });
 
